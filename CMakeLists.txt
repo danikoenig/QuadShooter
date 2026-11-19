@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(QuadShooter VERSION 0.1.0)
+project(QuadShooter VERSION 0.2.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -40,6 +40,7 @@ target_sources(QuadShooter PRIVATE
     Source/PluginEditor.cpp
     Source/SlotView.cpp
     Source/XYPad.cpp
+    Source/EditStrip.cpp
     Source/Look.cpp
     Source/SampleLibrary.cpp
     Source/LibraryPanel.cpp)

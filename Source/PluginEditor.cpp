@@ -10,17 +10,19 @@ namespace
     constexpr int margin = 14;
     constexpr int gap = 12;
     constexpr int headerH = 40;
-    constexpr int moduleH = 160;
+    constexpr int moduleH = 150;
+    constexpr int editH = 112;
 }
 
 QuadShooterEditor::QuadShooterEditor (QuadShooterProcessor& p)
-    : AudioProcessorEditor (&p), processor (p), library (p), xyPad (p),
+    : AudioProcessorEditor (&p), processor (p), library (p), xyPad (p), editStrip (p),
       clipMeter (clip, true), outMeter (accent2, false)
 {
     setLookAndFeel (&lnf);
 
     addAndMakeVisible (library);
     addAndMakeVisible (xyPad);
+    addAndMakeVisible (editStrip);
 
     for (int s = 0; s < numSlots; ++s)
     {
@@ -74,17 +76,14 @@ QuadShooterEditor::QuadShooterEditor (QuadShooterProcessor& p)
     syncModeAtt = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (processor.apvts, ParamIDs::syncMode, syncModeBox);
 
     // Module
-    mAmp    = { "AMP ENV",    env,       {} };
+    mAmp    = { "AMP",        env,       {} };
     mClip   = { "CLIPPER",    clip,      {} };
     mOut    = { "OUTPUT",     accent2,   {} };
 
     auto& a = processor.apvts;
     kAttack.setup    (*this, a, ParamIDs::attack,    "Attack",  env);
-    kHold.setup      (*this, a, ParamIDs::hold,      "Hold",    env);
-    kDecay.setup     (*this, a, ParamIDs::decay,     "Decay",   env);
     kRelease.setup   (*this, a, ParamIDs::release,   "Release", env);
     kClipDrive.setup (*this, a, ParamIDs::clipDrive, "Drive",   clip);
-    kVelocity.setup  (*this, a, ParamIDs::velocity,  "Velocity", accent2);
     kGain.setup      (*this, a, ParamIDs::gain,      "Gain",    accent2);
 
     clipOn.getProperties().set ("accent", clip.toString());
@@ -102,8 +101,8 @@ QuadShooterEditor::QuadShooterEditor (QuadShooterProcessor& p)
     library.setVisible (processor.showLibrary);
     const int libExtra = libWidth + margin;
     setResizable (true, true);
-    setResizeLimits (processor.showLibrary ? 1180 : 880, 680, 2200, 1400);
-    setSize (processor.showLibrary ? 1056 + libExtra : 1056, 760);
+    setResizeLimits (processor.showLibrary ? 1180 : 880, 760, 2200, 1500);
+    setSize (processor.showLibrary ? 1056 + libExtra : 1056, 840);
 
     updateSlotInfo();
     updateLeadButtons();
@@ -188,8 +187,10 @@ void QuadShooterEditor::resized()
 
     r.removeFromTop (gap);
 
-    // Module unten
+    // Module unten, darueber die Edit-Zeile des aktiven Slots
     auto modules = r.removeFromBottom (moduleH);
+    r.removeFromBottom (gap);
+    auto editArea = r.removeFromBottom (editH);
     r.removeFromBottom (gap);
 
     // Slots + XY-Pad: A | XY | B oben, C | XY | D unten
@@ -206,10 +207,12 @@ void QuadShooterEditor::resized()
     slots[2]->setBounds (left.removeFromBottom (slotSize));
     slots[1]->setBounds (right.removeFromTop (slotSize));
     slots[3]->setBounds (right.removeFromBottom (slotSize));
+    editStrip.setBounds (editArea.withSizeKeepingCentre (totalW, editH));
+    modules = modules.withSizeKeepingCentre (totalW, moduleH);
 
-    // Modul-Reihe: Amp 4 | Clip 3 | Out 2.6
-    const float units[] = { 4.0f, 3.0f, 2.6f };
-    const float unit = (float) (modules.getWidth() - 2 * gap) / (4.0f + 3.0f + 2.6f);
+    // Modul-Reihe: Amp 2 | Clip 3 | Out 1.6
+    const float units[] = { 2.0f, 3.0f, 1.6f };
+    const float unit = (float) (modules.getWidth() - 2 * gap) / (2.0f + 3.0f + 1.6f);
     Module* ms[] = { &mAmp, &mClip, &mOut };
     for (int i = 0; i < 3; ++i)
     {
@@ -219,7 +222,7 @@ void QuadShooterEditor::resized()
 
     auto inner = [] (juce::Rectangle<int> b) { return b.reduced (10, 8).withTrimmedTop (26); };
 
-    Knob::layoutRow (inner (mAmp.bounds), { &kAttack, &kHold, &kDecay, &kRelease });
+    Knob::layoutRow (inner (mAmp.bounds), { &kAttack, &kRelease });
 
     {
         auto c = inner (mClip.bounds);
@@ -236,7 +239,7 @@ void QuadShooterEditor::resized()
         auto o = inner (mOut.bounds);
         outMeter.setBounds (o.removeFromRight (22).withTrimmedTop (4));
         o.removeFromRight (10);
-        Knob::layoutRow (o, { &kVelocity, &kGain });
+        Knob::layoutRow (o, { &kGain });
     }
 }
 
@@ -247,6 +250,7 @@ void QuadShooterEditor::selectSlot (int s)
         return;
     processor.activeSlot = s;
     library.activeSlotChanged();
+    editStrip.setSlot (s);
     for (auto& sv : slots)
         sv->refresh();
 }
@@ -258,7 +262,7 @@ void QuadShooterEditor::setLibraryVisible (bool show)
     processor.showLibrary = show;
     library.setVisible (show);
     const int libExtra = libWidth + margin;
-    setResizeLimits (show ? 1180 : 880, 680, 2200, 1400);
+    setResizeLimits (show ? 1180 : 880, 760, 2200, 1500);
     setSize (juce::jlimit (show ? 1180 : 880, 2200, getWidth() + (show ? libExtra : -libExtra)), getHeight());
     resized();
     repaint();

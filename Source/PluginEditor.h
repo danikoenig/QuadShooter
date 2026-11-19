@@ -5,11 +5,13 @@
 #include "Knob.h"
 #include "SlotView.h"
 #include "XYPad.h"
+#include "EditStrip.h"
 #include "LibraryPanel.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 
 class QuadShooterEditor : public juce::AudioProcessorEditor,
                           public juce::FileDragAndDropTarget,
+                          public juce::DragAndDropContainer,
                           private juce::ChangeListener,
                           private juce::Timer
 {
@@ -45,6 +47,7 @@ private:
     LibraryPanel library;
     std::unique_ptr<SlotView> slots[numSlots];
     XYPad xyPad;
+    EditStrip editStrip;
 
     // Header
     juce::ToggleButton libraryButton, chromaticButton, keySyncButton { "KEY SYNC" };
@@ -55,9 +58,9 @@ private:
     juce::Rectangle<int> logoArea, leadLabel;
 
     // Module
-    Knob kAttack, kHold, kDecay, kRelease;
+    Knob kAttack, kRelease;
     Knob kClipDrive;
-    Knob kVelocity, kGain;
+    Knob kGain;
     juce::ToggleButton clipOn { "ON" }, clipHard { "HARD" };
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> clipOnAtt, clipHardAtt;
     Meter clipMeter, outMeter;

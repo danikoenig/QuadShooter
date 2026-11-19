@@ -40,6 +40,9 @@ private:
     void selectedRowsChanged (int lastRowSelected) override;
     void listBoxItemClicked (int row, const juce::MouseEvent&) override;
     void returnKeyPressed (int row) override;
+    void listBoxItemDoubleClicked (int row, const juce::MouseEvent&) override;
+    juce::var getDragSourceDescription (const juce::SparseSet<int>& rows) override;
+    void loadIntoActive (int row);
     void deleteKeyPressed (int) override { goUp(); }
 
     void changeListenerCallback (juce::ChangeBroadcaster*) override;

@@ -15,11 +15,19 @@ inline constexpr int numSlots = 4;
 namespace ParamIDs
 {
     // Pro Slot (Suffix A..D)
-    inline juce::String level (int s) { return "level" + juce::String::charToString ((juce::juce_wchar) ('A' + s)); }
-    inline juce::String tune  (int s) { return "tune"  + juce::String::charToString ((juce::juce_wchar) ('A' + s)); }
-    inline juce::String start (int s) { return "start" + juce::String::charToString ((juce::juce_wchar) ('A' + s)); }
-    inline juce::String pan   (int s) { return "pan"   + juce::String::charToString ((juce::juce_wchar) ('A' + s)); }
-    inline juce::String mute  (int s) { return "mute"  + juce::String::charToString ((juce::juce_wchar) ('A' + s)); }
+    inline juce::String slotID (const char* base, int s) { return juce::String (base) + juce::String::charToString ((juce::juce_wchar) ('A' + s)); }
+    inline juce::String level   (int s) { return slotID ("level", s); }
+    inline juce::String tune    (int s) { return slotID ("tune", s); }
+    inline juce::String start   (int s) { return slotID ("start", s); }
+    inline juce::String end     (int s) { return slotID ("end", s); }
+    inline juce::String pan     (int s) { return slotID ("pan", s); }
+    inline juce::String mute    (int s) { return slotID ("mute", s); }
+    inline juce::String hold    (int s) { return slotID ("hold", s); }
+    inline juce::String decay   (int s) { return slotID ("decay", s); }
+    inline juce::String tone    (int s) { return slotID ("tone", s); }
+    inline juce::String lowCut  (int s) { return slotID ("lowCut", s); }
+    inline juce::String highCut (int s) { return slotID ("highCut", s); }
+    inline juce::String vel     (int s) { return slotID ("vel", s); }
 
     // XY-Mixer
     inline constexpr const char* xyX        = "xyX";
@@ -29,17 +37,14 @@ namespace ParamIDs
     inline constexpr const char* syncMode   = "syncMode";
     inline constexpr const char* lead       = "lead";
     inline constexpr const char* chromatic  = "chromatic";
-    // Amp-Envelope
+    // Amp (global; Hold/Decay sind pro Slot)
     inline constexpr const char* attack     = "attack";
-    inline constexpr const char* hold       = "hold";
-    inline constexpr const char* decay      = "decay";
     inline constexpr const char* release    = "release";
     // Clipper
     inline constexpr const char* clipOn     = "clipOn";
     inline constexpr const char* clipHard   = "clipHard";
     inline constexpr const char* clipDrive  = "clipDrive";
     // Output
-    inline constexpr const char* velocity   = "velocity";
     inline constexpr const char* gain       = "gain";
 }
 
@@ -130,6 +135,7 @@ public:
     float getClipReductionDb() const          { return clipReductionDb.load(); }
     float getOutputPeak() const               { return outputPeak.load(); }
     void  triggerPreview (int slot)           { previewRequest = slot; }   // -1 = alle Slots (XY-Mix)
+    bool  previewFile (const juce::File& file);                           // Library: nur vorhoeren, nicht laden
     SampleLibrary& getLibrary()               { return *library; }
 
     std::atomic<int> activeSlot { 0 };   // Ziel fuer Library und Datei-Drops
@@ -145,7 +151,25 @@ private:
     {
         bool   active = false;
         double position = 0.0, endPosition = 0.0, baseIncrement = 1.0;
+        int    envStage = 0;          // 0 = Hold, 1 = Decay
+        double envSamples = 0.0;
+        float  envLevel = 1.0f;
+        float  velGain = 1.0f;
+        float  toneLp[2] {};          // Tilt
+        float  hp1[2] {}, hp2[2] {};  // Low Cut (SVF)
+        float  lp1[2] {}, lp2[2] {};  // High Cut (SVF)
     };
+
+    struct Svf { bool on = false; float a1 = 1.0f, a2 = 0.0f, a3 = 0.0f, k = 1.41421f; };
+    struct SlotDsp
+    {
+        double pitchRatio = 1.0, holdSamples = 0.0;
+        float  decayCoeff = 1.0f;
+        float  toneCoeff = 0.0f, toneLow = 1.0f, toneHigh = 1.0f;
+        bool   toneOn = false;
+        Svf    hp, lp;
+    };
+    static Svf makeSvf (float fc, double sr);
 
     struct Voice
     {
@@ -154,12 +178,9 @@ private:
         int    soloSlot = -1;          // Vorhoeren: nur dieser Slot, ohne XY-Mix
         float  noteOffset = 0.0f;
         Layer  layers[numSlots];
-        // Amp-Envelope
-        int    envStage = 0;
-        double envSamples = 0.0;
-        float  envLevel = 0.0f;
+        // Attack (global)
+        double attackSamples = 0.0;
         // Gemeinsam
-        float  velocityGain = 1.0f;
         bool   releasing = false;
         float  releaseGain = 1.0f, releaseCoeff = 1.0f;
         float  fadeGain = 1.0f, fadeStep = 0.0f;
@@ -198,18 +219,30 @@ private:
     std::atomic<float> clipReductionDb { 0.0f };
     std::atomic<float> outputPeak { 0.0f };
     std::atomic<int>   previewRequest { -2 };   // -2 = nichts
+    // Library-Vorhoeren (eigener Player, unabhaengig von den Slots)
+    std::unique_ptr<SampleData> previewSample;
+    std::atomic<bool> previewStart { false };
+    double previewPos = 0.0;
+    bool   previewActive = false;
     juce::SharedResourcePointer<SampleLibrary> library;
 
     // Parameter-Zeiger
     std::atomic<float>* pLevel[numSlots] {};
     std::atomic<float>* pTune[numSlots] {};
     std::atomic<float>* pStart[numSlots] {};
+    std::atomic<float>* pEnd[numSlots] {};
     std::atomic<float>* pPan[numSlots] {};
     std::atomic<float>* pMute[numSlots] {};
+    std::atomic<float>* pHold[numSlots] {};
+    std::atomic<float>* pDecay[numSlots] {};
+    std::atomic<float>* pTone[numSlots] {};
+    std::atomic<float>* pLowCut[numSlots] {};
+    std::atomic<float>* pHighCut[numSlots] {};
+    std::atomic<float>* pVel[numSlots] {};
     std::atomic<float> *pX = nullptr, *pY = nullptr, *pKeySync = nullptr, *pSyncMode = nullptr, *pLead = nullptr,
-                       *pChromatic = nullptr, *pAttack = nullptr, *pHold = nullptr, *pDecay = nullptr,
+                       *pChromatic = nullptr, *pAttack = nullptr,
                        *pRelease = nullptr, *pClipOn = nullptr,
-                       *pClipHard = nullptr, *pClipDrive = nullptr, *pVelocity = nullptr, *pGain = nullptr;
+                       *pClipHard = nullptr, *pClipDrive = nullptr, *pGain = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (QuadShooterProcessor)
 };

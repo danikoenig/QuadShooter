@@ -49,8 +49,15 @@ QuadShooterProcessor::QuadShooterProcessor()
         pLevel[s] = apvts.getRawParameterValue (ParamIDs::level (s));
         pTune[s]  = apvts.getRawParameterValue (ParamIDs::tune (s));
         pStart[s] = apvts.getRawParameterValue (ParamIDs::start (s));
+        pEnd[s]   = apvts.getRawParameterValue (ParamIDs::end (s));
         pPan[s]   = apvts.getRawParameterValue (ParamIDs::pan (s));
         pMute[s]  = apvts.getRawParameterValue (ParamIDs::mute (s));
+        pHold[s]  = apvts.getRawParameterValue (ParamIDs::hold (s));
+        pDecay[s] = apvts.getRawParameterValue (ParamIDs::decay (s));
+        pTone[s]  = apvts.getRawParameterValue (ParamIDs::tone (s));
+        pLowCut[s]  = apvts.getRawParameterValue (ParamIDs::lowCut (s));
+        pHighCut[s] = apvts.getRawParameterValue (ParamIDs::highCut (s));
+        pVel[s]   = apvts.getRawParameterValue (ParamIDs::vel (s));
         rootOverride[(size_t) s] = rootAuto;
         effectiveRoot[(size_t) s] = noPitch;
         playPos[(size_t) s] = -1.0f;
@@ -60,11 +67,10 @@ QuadShooterProcessor::QuadShooterProcessor()
     pX = get (ParamIDs::xyX);              pY = get (ParamIDs::xyY);
     pKeySync = get (ParamIDs::keySync);    pSyncMode = get (ParamIDs::syncMode);
     pLead = get (ParamIDs::lead);          pChromatic = get (ParamIDs::chromatic);
-    pAttack = get (ParamIDs::attack);      pHold = get (ParamIDs::hold);
-    pDecay = get (ParamIDs::decay);        pRelease = get (ParamIDs::release);
+    pAttack = get (ParamIDs::attack);      pRelease = get (ParamIDs::release);
     pClipOn = get (ParamIDs::clipOn);      pClipHard = get (ParamIDs::clipHard);
     pClipDrive = get (ParamIDs::clipDrive);
-    pVelocity = get (ParamIDs::velocity);  pGain = get (ParamIDs::gain);
+    pGain = get (ParamIDs::gain);
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout QuadShooterProcessor::createLayout()
@@ -91,9 +97,21 @@ juce::AudioProcessorValueTreeState::ParameterLayout QuadShooterProcessor::create
                   [] (float v, int) { return v <= -59.9f ? String ("-inf") : String (v, 1) + " dB"; });
         addFloat (ParamIDs::tune (s),  L + " Tune",  { -24.0f, 24.0f, 0.01f }, 0.0f, st);
         addFloat (ParamIDs::start (s), L + " Start", { 0.0f, 1.0f }, 0.0f, pct);
+        addFloat (ParamIDs::end (s),   L + " End",   { 0.0f, 1.0f }, 1.0f, pct);
         addFloat (ParamIDs::pan (s),   L + " Pan",   { -1.0f, 1.0f }, 0.0f,
                   [] (float v, int) { return std::abs (v) < 0.005f ? String ("C") : (v < 0 ? "L" : "R") + String (roundToInt (std::abs (v) * 100.0f)); });
         layout.add (std::make_unique<AudioParameterBool> (ParameterID { ParamIDs::mute (s), 1 }, L + " Mute", false));
+        addFloat (ParamIDs::hold (s),  L + " Hold",  { 0.0f, 2000.0f, 0.0f, 0.35f }, 50.0f, ms);
+        addFloat (ParamIDs::decay (s), L + " Decay", { 5.0f, 10000.0f, 0.0f, 0.3f }, 10000.0f,
+                  [] (float v, int) { return v >= 9999.0f ? String ("Max") : (v >= 1000.0f ? String (v / 1000.0f, 2) + " s" : String (roundToInt (v)) + " ms"); });
+        addFloat (ParamIDs::tone (s),  L + " Tone",  { -1.0f, 1.0f }, 0.0f,
+                  [] (float v, int) { return std::abs (v) < 0.005f ? String ("0") : (v > 0 ? "+" : "") + String (roundToInt (v * 100.0f)); });
+        auto hz = [] (float v, int) { return v >= 1000.0f ? String (v / 1000.0f, 1) + " kHz" : String (roundToInt (v)) + " Hz"; };
+        addFloat (ParamIDs::lowCut (s),  L + " Low Cut",  { 20.0f, 20000.0f, 0.0f, 0.25f }, 20.0f,
+                  [hz] (float v, int i) { return v <= 20.5f ? String ("Off") : hz (v, i); });
+        addFloat (ParamIDs::highCut (s), L + " High Cut", { 20.0f, 20000.0f, 0.0f, 0.25f }, 20000.0f,
+                  [hz] (float v, int i) { return v >= 19999.0f ? String ("Off") : hz (v, i); });
+        addFloat (ParamIDs::vel (s),   L + " Vel Sens", { 0.0f, 1.0f }, 0.5f, pct);
     }
 
     addFloat (ParamIDs::xyX, "Mix X", { 0.0f, 1.0f }, 0.5f, pct);
@@ -105,9 +123,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout QuadShooterProcessor::create
     layout.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamIDs::chromatic, 1 }, "Chromatic", false));
 
     addFloat (ParamIDs::attack,  "Attack",  { 0.0f, 200.0f, 0.0f, 0.35f }, 0.0f, ms);
-    addFloat (ParamIDs::hold,    "Hold",    { 0.0f, 2000.0f, 0.0f, 0.35f }, 50.0f, ms);
-    addFloat (ParamIDs::decay,   "Decay",   { 5.0f, 10000.0f, 0.0f, 0.3f }, 10000.0f,
-              [] (float v, int) { return v >= 9999.0f ? String ("Max") : (v >= 1000.0f ? String (v / 1000.0f, 2) + " s" : String (roundToInt (v)) + " ms"); });
     addFloat (ParamIDs::release, "Release", { 5.0f, releaseOffValue, 0.0f, 0.35f }, releaseOffValue,
               [] (float v, int) { return v >= releaseOffValue - 0.5f ? String ("Off") : (v >= 1000.0f ? String (v / 1000.0f, 2) + " s" : String (roundToInt (v)) + " ms"); });
 
@@ -116,7 +131,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout QuadShooterProcessor::create
     addFloat (ParamIDs::clipDrive, "Clip Drive", { 0.0f, 24.0f, 0.1f }, 0.0f,
               [] (float v, int) { return "+" + String (v, 1) + " dB"; });
 
-    addFloat (ParamIDs::velocity, "Velocity", { 0.0f, 1.0f }, 0.5f, pct);
     addFloat (ParamIDs::gain,     "Gain",     { -36.0f, 12.0f, 0.1f }, -3.0f, db);
 
     return layout;
@@ -227,6 +241,29 @@ bool QuadShooterProcessor::loadSample (int slot, const juce::File& file)
     return true;
 }
 
+bool QuadShooterProcessor::previewFile (const juce::File& file)
+{
+    std::unique_ptr<juce::AudioFormatReader> reader (formatManager.createReaderFor (file));
+    if (reader == nullptr || reader->lengthInSamples <= 0)
+        return false;
+    const int numSamples = (int) juce::jmin (reader->lengthInSamples, (juce::int64) (reader->sampleRate * 10.0));
+    const int numChannels = (int) juce::jlimit (1u, 2u, reader->numChannels);
+    auto data = std::make_unique<SampleData>();
+    data->buffer.setSize (numChannels, numSamples);
+    reader->read (&data->buffer, 0, numSamples, 0, true, numChannels > 1);
+    data->sampleRate = reader->sampleRate;
+
+    std::unique_ptr<SampleData> old;
+    {
+        const juce::SpinLock::ScopedLockType sl (sampleLock);
+        old = std::move (previewSample);
+        previewSample = std::move (data);
+        previewActive = false;
+    }
+    previewStart = true;
+    return true;
+}
+
 void QuadShooterProcessor::clearSlot (int slot)
 {
     if (slot < 0 || slot >= numSlots)
@@ -331,7 +368,6 @@ void QuadShooterProcessor::startVoice (int note, int midiVelocity, int soloSlot)
     }
 
     const float vel = (float) midiVelocity / 127.0f;
-    const float sens = pVelocity->load();
 
     auto& v = *target;
     v = Voice();
@@ -339,7 +375,6 @@ void QuadShooterProcessor::startVoice (int note, int midiVelocity, int soloSlot)
     v.note = note;
     v.soloSlot = soloSlot;
     v.age = ++voiceCounter;
-    v.velocityGain = (1.0f - sens) + sens * vel * vel;
     v.noteOffset = (chromatic && note >= 0) ? (float) (note - rootNote) : 0.0f;
 
     bool any = false;
@@ -349,11 +384,16 @@ void QuadShooterProcessor::startVoice (int note, int midiVelocity, int soloSlot)
         if (d == nullptr || (soloSlot >= 0 && s != soloSlot))
             continue;
         const int n = d->buffer.getNumSamples();
+        const double st = (double) pStart[s]->load() * (n - 1);
+        const double en = juce::jmax (st + 16.0, (double) pEnd[s]->load() * (n - 1));
         auto& L = v.layers[s];
+        L = Layer();
         L.active = true;
-        L.position = (double) pStart[s]->load() * (n - 1);
-        L.endPosition = (double) n - 1.0;
+        L.position = st;
+        L.endPosition = juce::jmin ((double) n - 1.0, en);
         L.baseIncrement = d->sampleRate / currentSampleRate;
+        const float sens = pVel[s]->load();
+        L.velGain = (1.0f - sens) + sens * vel * vel;
         any = true;
     }
     if (! any)
@@ -375,19 +415,51 @@ void QuadShooterProcessor::releaseVoices (int note)
         }
 }
 
+QuadShooterProcessor::Svf QuadShooterProcessor::makeSvf (float fc, double sr)
+{
+    Svf f;
+    f.on = true;
+    const float g = std::tan (juce::MathConstants<float>::pi * juce::jlimit (10.0f, (float) (sr * 0.45), fc) / (float) sr);
+    f.k = 1.41421f;   // Q 0.707
+    f.a1 = 1.0f / (1.0f + g * (g + f.k));
+    f.a2 = g * f.a1;
+    f.a3 = g * f.a2;
+    return f;
+}
+
 void QuadShooterProcessor::renderVoices (juce::AudioBuffer<float>& out, int startSample, int numSamples)
 {
     const int outChannels = out.getNumChannels();
     const double sr = currentSampleRate;
-
     const double attackSamples = pAttack->load() * 0.001 * sr;
-    const double holdSamples   = pHold->load() * 0.001 * sr;
-    const float  ampCoeff      = decayCoeff (pDecay->load(), sr);
-    const double endFade       = sr * 0.002;
+    const double endFade = sr * 0.002;
 
-    double pitchRatio[numSlots];
+    // Pro Slot einmal pro Block
+    SlotDsp dsp[numSlots];
     for (int s = 0; s < numSlots; ++s)
-        pitchRatio[s] = std::exp2 ((pTune[s]->load() + getSyncOffset (s)) / 12.0);
+    {
+        auto& D = dsp[s];
+        D.pitchRatio = std::exp2 ((pTune[s]->load() + getSyncOffset (s)) / 12.0);
+        D.holdSamples = pHold[s]->load() * 0.001 * sr;
+        D.decayCoeff = pDecay[s]->load() >= 9999.0f ? 1.0f : decayCoeff (pDecay[s]->load(), sr);
+        const float tone = pTone[s]->load();
+        D.toneOn = std::abs (tone) > 0.005f;
+        D.toneCoeff = 1.0f - std::exp (-juce::MathConstants<float>::twoPi * 900.0f / (float) sr);
+        D.toneLow  = 1.0f - 0.8f * tone;
+        D.toneHigh = 1.0f + 0.8f * tone;
+        if (pLowCut[s]->load() > 20.5f)     D.hp = makeSvf (pLowCut[s]->load(), sr);
+        if (pHighCut[s]->load() < 19999.0f) D.lp = makeSvf (pHighCut[s]->load(), sr);
+    }
+
+    auto svf = [] (const Svf& f, float x, float& ic1, float& ic2, bool high)
+    {
+        const float v3 = x - ic2;
+        const float v1 = f.a1 * ic1 + f.a2 * v3;
+        const float v2 = ic2 + f.a2 * ic1 + f.a3 * v3;
+        ic1 = 2.0f * v1 - ic1;
+        ic2 = 2.0f * v2 - ic2;
+        return high ? x - f.k * v1 - v2 : v2;
+    };
 
     for (int i = 0; i < numSamples; ++i)
     {
@@ -405,26 +477,10 @@ void QuadShooterProcessor::renderVoices (juce::AudioBuffer<float>& out, int star
             if (! v.active)
                 continue;
 
-            // Amp-Envelope
-            switch (v.envStage)
-            {
-                case 0:
-                    if (attackSamples < 1.0 || v.envSamples >= attackSamples)
-                    { v.envStage = 1; v.envSamples = 0.0; v.envLevel = 1.0f; }
-                    else
-                        v.envLevel = (float) (v.envSamples / attackSamples);
-                    break;
-                case 1:
-                    v.envLevel = 1.0f;
-                    if (v.envSamples >= holdSamples) { v.envStage = 2; v.envSamples = 0.0; }
-                    break;
-                default:
-                    v.envLevel *= ampCoeff;
-                    break;
-            }
-            v.envSamples += 1.0;
+            const float att = (attackSamples < 1.0 || v.attackSamples >= attackSamples)
+                                  ? 1.0f : (float) (v.attackSamples / attackSamples);
+            v.attackSamples += 1.0;
 
-            // Layer
             float vl = 0.0f, vr = 0.0f;
             bool anyLayer = false;
             const double noteRatio = std::abs (v.noteOffset) > 0.0001f ? std::exp2 ((double) v.noteOffset / 12.0) : 1.0;
@@ -436,6 +492,16 @@ void QuadShooterProcessor::renderVoices (juce::AudioBuffer<float>& out, int star
                     continue;
                 const auto* d = renderSamples[s];
                 if (d == nullptr) { L.active = false; continue; }
+                const auto& D = dsp[s];
+
+                // Hold / Decay pro Slot
+                if (L.envStage == 0)
+                {
+                    if (L.envSamples >= D.holdSamples) L.envStage = 1;
+                }
+                else
+                    L.envLevel *= D.decayCoeff;
+                L.envSamples += 1.0;
 
                 const int n = d->buffer.getNumSamples();
                 const int idx = (int) L.position;
@@ -444,32 +510,44 @@ void QuadShooterProcessor::renderVoices (juce::AudioBuffer<float>& out, int star
                 const float* c1 = d->buffer.getReadPointer (d->buffer.getNumChannels() > 1 ? 1 : 0);
                 auto at = [n] (const float* c, int k) { return c[juce::jlimit (0, n - 1, k)]; };
 
-                const double inc = L.baseIncrement * pitchRatio[s] * noteRatio;
+                const double inc = L.baseIncrement * D.pitchRatio * noteRatio;
                 const float endGain = (float) juce::jlimit (0.0, 1.0, ((L.endPosition - L.position) / inc) / endFade);
+                const float g = endGain * L.envLevel * L.velGain;
 
-                const float sl = hermite (at (c0, idx - 1), at (c0, idx), at (c0, idx + 1), at (c0, idx + 2), frac) * endGain;
-                const float sr2 = c1 == c0 ? sl
-                    : hermite (at (c1, idx - 1), at (c1, idx), at (c1, idx + 1), at (c1, idx + 2), frac) * endGain;
+                float x[2];
+                x[0] = hermite (at (c0, idx - 1), at (c0, idx), at (c0, idx + 1), at (c0, idx + 2), frac) * g;
+                x[1] = c1 == c0 ? x[0]
+                     : hermite (at (c1, idx - 1), at (c1, idx), at (c1, idx + 1), at (c1, idx + 2), frac) * g;
 
-                if (v.soloSlot >= 0) { vl += sl; vr += sr2; }
-                else                 { vl += sl * gl[s]; vr += sr2 * gr[s]; }
+                for (int ch = 0; ch < 2; ++ch)
+                {
+                    if (D.toneOn)
+                    {
+                        L.toneLp[ch] += D.toneCoeff * (x[ch] - L.toneLp[ch]);
+                        x[ch] = L.toneLp[ch] * D.toneLow + (x[ch] - L.toneLp[ch]) * D.toneHigh;
+                    }
+                    if (D.hp.on) x[ch] = svf (D.hp, x[ch], L.hp1[ch], L.hp2[ch], true);
+                    if (D.lp.on) x[ch] = svf (D.lp, x[ch], L.lp1[ch], L.lp2[ch], false);
+                }
+
+                if (v.soloSlot >= 0) { vl += x[0]; vr += x[1]; }
+                else                 { vl += x[0] * gl[s]; vr += x[1] * gr[s]; }
 
                 L.position += inc;
-                if (L.position >= L.endPosition)
+                if (L.position >= L.endPosition || (L.envStage == 1 && L.envLevel <= envFloor))
                     L.active = false;
                 else
                     anyLayer = true;
             }
 
-            const float amp = v.envLevel * v.velocityGain * v.fadeGain * v.releaseGain;
+            const float amp = att * v.fadeGain * v.releaseGain;
             outL += vl * amp;
             outR += vr * amp;
 
             if (v.releasing)       v.releaseGain *= v.releaseCoeff;
             if (v.fadeStep > 0.0f) v.fadeGain -= v.fadeStep;
 
-            if (! anyLayer || v.fadeGain <= 0.0f || v.releaseGain <= envFloor
-                || (v.envStage == 2 && v.envLevel <= envFloor))
+            if (! anyLayer || v.fadeGain <= 0.0f || v.releaseGain <= envFloor)
                 v.active = false;
         }
 
@@ -568,6 +646,33 @@ void QuadShooterProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             }
             if (pos < numSamples)
                 renderVoices (buffer, pos, numSamples - pos);
+
+            // Library-Vorhoeren
+            if (previewStart.exchange (false))
+            {
+                previewPos = 0.0;
+                previewActive = previewSample != nullptr;
+            }
+            if (previewActive && previewSample != nullptr)
+            {
+                const auto& pb = previewSample->buffer;
+                const int n = pb.getNumSamples();
+                const double inc = previewSample->sampleRate / currentSampleRate;
+                const int chs = pb.getNumChannels();
+                for (int i = 0; i < numSamples && previewActive; ++i)
+                {
+                    const int k = (int) previewPos;
+                    if (k + 1 >= n) { previewActive = false; break; }
+                    const float t = (float) (previewPos - k);
+                    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                    {
+                        const int sc = juce::jmin (ch, chs - 1);
+                        const float a = pb.getSample (sc, k), b2 = pb.getSample (sc, k + 1);
+                        buffer.addSample (ch, i, 0.8f * (a + t * (b2 - a)));
+                    }
+                    previewPos += inc;
+                }
+            }
 
             // Playhead pro Slot (juengste Stimme)
             for (int s = 0; s < numSlots; ++s)

@@ -21,13 +21,22 @@ SlotView::SlotView (QuadShooterProcessor& p, int i)
     addAndMakeVisible (muteButton);
     muteAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (processor.apvts, ParamIDs::mute (index), muteButton);
 
-    kLevel.setup (*this, processor.apvts, ParamIDs::level (index), "Level", colour, true);
-    kTune.setup  (*this, processor.apvts, ParamIDs::tune (index),  "Tune",  colour, true);
-    kStart.setup (*this, processor.apvts, ParamIDs::start (index), "Start", colour, true);
-    kPan.setup   (*this, processor.apvts, ParamIDs::pan (index),   "Pan",   colour, true);
-    kTune.slider.getProperties().set ("bipolar", true);
-    kPan.slider.getProperties().set ("bipolar", true);
-    kTune.slider.setTooltip ("Fine-tune this slot (added on top of Key Sync)");
+    levelSlider.setSliderStyle (juce::Slider::LinearBar);
+    levelSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    levelSlider.getProperties().set ("accent", colour.toString());
+    levelSlider.setTooltip ("Level of slot " + slotLetter (index));
+    levelSlider.onValueChange = [this] { levelValue.setText (levelSlider.getTextFromValue (levelSlider.getValue()), juce::dontSendNotification); };
+    addAndMakeVisible (levelSlider);
+    levelAtt = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (processor.apvts, ParamIDs::level (index), levelSlider);
+    if (auto* prm = processor.apvts.getParameter (ParamIDs::level (index)))
+        levelSlider.setDoubleClickReturnValue (true, prm->convertFrom0to1 (prm->getDefaultValue()));
+    levelSlider.textFromValueFunction = [] (double v) { return v <= -59.9 ? juce::String ("-inf") : juce::String (v, 1) + " dB"; };
+    levelValue.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+    levelValue.setColour (juce::Label::textColourId, text);
+    levelValue.setJustificationType (juce::Justification::centredRight);
+    levelValue.setInterceptsMouseClicks (false, false);
+    levelValue.setText (levelSlider.getTextFromValue (levelSlider.getValue()), juce::dontSendNotification);
+    addAndMakeVisible (levelValue);
 
     samplesChanged();
 }
@@ -118,23 +127,27 @@ void SlotView::paint (juce::Graphics& g)
         }
 
         const float startX = x0 + startPos * (float) cols;
+        const float endX = x0 + juce::jmax (startPos, endPos) * (float) cols;
         {
             juce::Graphics::ScopedSaveState ss (g);
-            g.reduceClipRegion (w.withLeft (startX).toNearestInt());
+            g.reduceClipRegion (w.withLeft (startX).withRight (endX + 1.0f).toNearestInt());
             g.setColour (muted ? textDim.withAlpha (0.5f) : colour.withAlpha (0.9f));
             g.fillPath (path);
         }
         {
             juce::Graphics::ScopedSaveState ss (g);
-            g.reduceClipRegion (w.withRight (startX).toNearestInt());
+            juce::RectangleList<int> outside;
+            outside.add (w.withRight (startX).toNearestInt());
+            outside.add (w.withLeft (endX + 1.0f).toNearestInt());
+            g.reduceClipRegion (outside);
             g.setColour (textDim.withAlpha (0.25f));
             g.fillPath (path);
         }
+        g.setColour (text.withAlpha (0.7f));
         if (startPos > 0.0f)
-        {
-            g.setColour (text.withAlpha (0.7f));
             g.drawVerticalLine ((int) startX, w.getY() + 3.0f, w.getBottom() - 3.0f);
-        }
+        if (endPos < 0.999f)
+            g.drawVerticalLine ((int) endX, w.getY() + 3.0f, w.getBottom() - 3.0f);
         if (playPos >= 0.0f)
         {
             g.setColour (text);
@@ -150,7 +163,7 @@ void SlotView::paint (juce::Graphics& g)
     {
         g.setColour (textDim.withAlpha (0.6f));
         g.setFont (juce::FontOptions (12.0f));
-        g.drawFittedText ("Drop sample\nor pick one in the library", waveArea, juce::Justification::centred, 2);
+        g.drawFittedText ("Drag a sample here\nfrom the library", waveArea, juce::Justification::centred, 2);
     }
 
     // Ton-Pill
@@ -189,6 +202,11 @@ void SlotView::paint (juce::Graphics& g)
     g.setColour (rightCol);
     g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
     g.drawText (right, inner, juce::Justification::centredRight);
+
+    // Level-Zeile
+    g.setColour (textDim);
+    g.setFont (juce::FontOptions (9.5f, juce::Font::bold));
+    g.drawText ("LEVEL", levelArea.withWidth (40), juce::Justification::centredLeft);
 }
 
 void SlotView::resized()
@@ -209,13 +227,18 @@ void SlotView::resized()
     nameArea = header;
 
     r.removeFromTop (8);
-    auto knobs = r.removeFromBottom (juce::jlimit (58, 76, r.getHeight() / 3));
-    r.removeFromBottom (6);
+    levelArea = r.removeFromBottom (20);
+    {
+        auto la = levelArea;
+        la.removeFromLeft (42);
+        levelValue.setBounds (la.removeFromRight (56));
+        la.removeFromRight (6);
+        levelSlider.setBounds (la.reduced (0, 4));
+    }
+    r.removeFromBottom (8);
     notePill = r.removeFromBottom (24);
     r.removeFromBottom (6);
     waveArea = r;
-
-    Knob::layoutRow (knobs, { &kLevel, &kTune, &kStart, &kPan }, 13);
 }
 
 void SlotView::mouseDown (const juce::MouseEvent& e)
@@ -314,21 +337,33 @@ bool SlotView::isInterestedInFileDrag (const juce::StringArray& files)
     return false;
 }
 
-void SlotView::filesDropped (const juce::StringArray& files, int, int)
+void SlotView::loadAndSelect (const juce::File& file)
 {
     dragHover = false;
     if (onSelect)
         onSelect (index);
-    for (auto& f : files)
-    {
-        juce::File file (f);
-        if (QuadShooterProcessor::isSupportedFile (file) && processor.loadSample (index, file))
-        {
-            processor.triggerPreview (index);
-            break;
-        }
-    }
+    if (QuadShooterProcessor::isSupportedFile (file) && processor.loadSample (index, file))
+        processor.triggerPreview (index);
     repaint();
+}
+
+void SlotView::filesDropped (const juce::StringArray& files, int, int)
+{
+    for (auto& f : files)
+        if (QuadShooterProcessor::isSupportedFile (juce::File (f)))
+            return loadAndSelect (juce::File (f));
+    dragHover = false;
+    repaint();
+}
+
+bool SlotView::isInterestedInDragSource (const SourceDetails& d)
+{
+    return d.description.toString().startsWith ("qs-sample:");
+}
+
+void SlotView::itemDropped (const SourceDetails& d)
+{
+    loadAndSelect (juce::File (d.description.toString().fromFirstOccurrenceOf ("qs-sample:", false, false)));
 }
 
 //==============================================================================
@@ -347,6 +382,8 @@ void SlotView::refresh()
 
     const float sp = processor.apvts.getRawParameterValue (ParamIDs::start (index))->load();
     if (std::abs (sp - startPos) > 0.0005f) { startPos = sp; dirty = true; }
+    const float ep = processor.apvts.getRawParameterValue (ParamIDs::end (index))->load();
+    if (std::abs (ep - endPos) > 0.0005f) { endPos = ep; dirty = true; }
 
     const float so = processor.getSyncOffset (index);
     if (std::abs (so - lastSync) > 0.001f) { lastSync = so; dirty = true; }

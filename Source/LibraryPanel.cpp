@@ -318,7 +318,34 @@ void LibraryPanel::returnKeyPressed (int row)
     const auto type = items[(size_t) row].type;
     if (type == Item::up)            goUp();
     else if (type == Item::folder)   openFolder (items[(size_t) row].path);
-    else                             audition (row);
+    else                             loadIntoActive (row);
+}
+
+void LibraryPanel::listBoxItemDoubleClicked (int row, const juce::MouseEvent&)
+{
+    if (row >= 0 && row < (int) items.size() && items[(size_t) row].type == Item::sample)
+        loadIntoActive (row);
+}
+
+juce::var LibraryPanel::getDragSourceDescription (const juce::SparseSet<int>& rows)
+{
+    if (rows.size() < 1)
+        return {};
+    const int row = rows[0];
+    if (row < 0 || row >= (int) items.size() || items[(size_t) row].type != Item::sample)
+        return {};
+    return "qs-sample:" + items[(size_t) row].entry.file.getFullPathName();
+}
+
+void LibraryPanel::loadIntoActive (int row)
+{
+    if (row < 0 || row >= (int) items.size() || items[(size_t) row].type != Item::sample)
+        return;
+    if (loadAndPlay (active(), items[(size_t) row].entry.file))
+    {
+        lastAuditioned = row;
+        rebuild();
+    }
 }
 
 int LibraryPanel::active() const
@@ -353,13 +380,17 @@ bool LibraryPanel::loadAndPlay (int slotIndex, const juce::File& file)
 
 void LibraryPanel::audition (int row)
 {
+    // Nur vorhoeren, nichts laden (laden per Drag auf einen Slot oder Doppelklick)
     if (row < 0 || row >= (int) items.size() || items[(size_t) row].type != Item::sample)
         return;
-    if (loadAndPlay (active(), items[(size_t) row].entry.file))
+    const auto file = items[(size_t) row].entry.file;
+    if (! file.existsAsFile() || ! processor.previewFile (file))
     {
-        lastAuditioned = row;
-        list.repaint();
+        status.setText ("File not found: " + file.getFileName(), juce::dontSendNotification);
+        return;
     }
+    lastAuditioned = row;
+    list.repaint();
 }
 
 std::vector<SampleLibrary::Entry> LibraryPanel::siblingsOf (const juce::String& root) const
@@ -473,6 +504,6 @@ void LibraryPanel::refreshStatus()
                             + " files, " + juce::String (lib.getOneShotsFound()) + " one-shots",
                         juce::dontSendNotification);
     else
-        status.setText (all.empty() ? juce::String ("No index yet") : juce::String ((int) all.size()) + " one-shots indexed",
+        status.setText (all.empty() ? juce::String ("No index yet") : juce::String ("Click = listen, drag onto a slot = load"),
                         juce::dontSendNotification);
 }

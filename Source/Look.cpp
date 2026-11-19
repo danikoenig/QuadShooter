@@ -308,3 +308,18 @@ void QuadLookAndFeel::positionComboBoxText (juce::ComboBox& box, juce::Label& la
     label.setFont (getComboBoxFont (box));
     label.setColour (juce::Label::textColourId, text);
 }
+
+void QuadLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int w, int h, float pos, float minPos, float maxPos,
+                                        juce::Slider::SliderStyle style, juce::Slider& s)
+{
+    if (style != juce::Slider::LinearBar)
+        return LookAndFeel_V4::drawLinearSlider (g, x, y, w, h, pos, minPos, maxPos, style, s);
+
+    const auto col = juce::Colour::fromString (s.getProperties().getWithDefault ("accent", accent.toString()).toString());
+    auto r = juce::Rectangle<int> (x, y, w, h).toFloat();
+    g.setColour (knobTrack);
+    g.fillRoundedRectangle (r, r.getHeight() * 0.5f);
+    auto fill = r.withRight (juce::jmax (r.getX() + r.getHeight(), pos));
+    g.setColour (col.withAlpha (s.isMouseOverOrDragging() ? 1.0f : 0.85f));
+    g.fillRoundedRectangle (fill, r.getHeight() * 0.5f);
+}

@@ -117,7 +117,8 @@ Components), otherwise the plugin may show up twice.
 
 HOW TO USE (SHORT)
 - Four slots A, B, C, D. Drag a sample onto a slot, or click "Load".
-- Click a slot to make it active: the library loads into the active slot.
+- Drag a sample from the library onto slot A, B, C or D. Click in the
+  library = listen only. Click a slot to edit it in the EDIT row below.
 - Drag a whole folder onto the plugin: it finds all one-shots and
   lists them in the library. Click a sample to hear it.
   Your files are not moved or copied.
@@ -277,7 +278,8 @@ Plug-Ins/Components), sonst erscheint das Plugin eventuell doppelt.
 
 KURZ ZUR BEDIENUNG
 - Vier Slots A, B, C, D. Sample auf einen Slot ziehen oder "Load" klicken.
-- Slot anklicken = aktiv: Die Library lädt in den aktiven Slot.
+- Sample aus der Library auf Slot A, B, C oder D ziehen. Klick in der
+  Library = nur vorhören. Slot anklicken = in der EDIT-Zeile bearbeiten.
 - Ganzen Ordner aufs Plugin ziehen: Alle One-Shots werden gefunden und
   in der Library gelistet. Klick auf ein Sample spielt es ab.
   Deine Dateien werden nicht verschoben oder kopiert.

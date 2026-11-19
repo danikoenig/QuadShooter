@@ -115,7 +115,7 @@ int main()
     std::printf ("Engine\n");
     QuadShooterProcessor p;
     p.setPlayConfigDetails (0, 2, sr, 512);
-    p.prepareToPlay (sr, 512);
+    p.prepareToPlay (sr, 8192);
 
     CHECK (p.loadSample (0, writeWav ("C3", tone (60.0f, sr, 1.2), sr)), "Slot A laedt C3");
     CHECK (p.loadSample (1, writeWav ("B1", tone (47.0f, sr, 1.2), sr)), "Slot B laedt B1");
@@ -180,6 +180,66 @@ int main()
         energy (0.5f, 0.5f, 0);
     }
 
+    // Edit-Zeile pro Slot: Decay, End, Low Cut, VelSens (nur Slot A hoerbar)
+    {
+        for (int s = 0; s < numSlots; ++s) setParam (p, ParamIDs::mute (s), s == 0 ? 0.0f : 1.0f);
+        setParam (p, ParamIDs::xyX, 0.0f); setParam (p, ParamIDs::xyY, 1.0f);
+        for (int i = 0; i < 3; ++i) render (p, 60, 0.05, sr);
+        auto tailRms = [&] { auto o = render (p, 60, 0.8, sr); return o.getRMSLevel (0, (int) (0.4 * sr), (int) (0.4 * sr)); };
+        auto fullRms = [&] { auto o = render (p, 60, 0.5, sr); return o.getRMSLevel (0, 0, o.getNumSamples()); };
+
+        const float tail0 = tailRms();
+        setParam (p, ParamIDs::decay (0), 80.0f);
+        const float tailShort = tailRms();
+        setParam (p, ParamIDs::decay (0), 10000.0f);
+        setParam (p, ParamIDs::end (0), 0.2f);
+        const float tailEnd = tailRms();
+        setParam (p, ParamIDs::end (0), 1.0f);
+        char msg[128];
+        std::snprintf (msg, sizeof msg, "Decay 80 ms / End 20 %%: Ausklang %.4f -> %.5f / %.5f", tail0, tailShort, tailEnd);
+        CHECK (tailShort < tail0 * 0.05f && tailEnd < tail0 * 0.05f, msg);
+
+        const float open = fullRms();
+        setParam (p, ParamIDs::lowCut (0), 2000.0f);
+        const float cut = fullRms();
+        setParam (p, ParamIDs::lowCut (0), 20.0f);
+        std::snprintf (msg, sizeof msg, "Low Cut 2 kHz: RMS %.3f -> %.3f", open, cut);
+        CHECK (cut < open * 0.5f, msg);
+
+        setParam (p, ParamIDs::tone (0), -1.0f);
+        const float dark = fullRms();
+        setParam (p, ParamIDs::tone (0), 0.0f);
+        CHECK (std::isfinite (dark) && dark > 0.0f, "Tone stabil");
+
+        // VelSens: leise Note bei 100 % deutlich leiser als bei 0 %
+        auto velRms = [&] (float sens)
+        {
+            setParam (p, ParamIDs::vel (0), sens);
+            juce::AudioBuffer<float> buf (2, 4800);
+            juce::MidiBuffer m; m.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 30), 0);
+            p.processBlock (buf, m);
+            return buf.getRMSLevel (0, 0, buf.getNumSamples());
+        };
+        const float v0 = velRms (0.0f), v1 = velRms (1.0f);
+        setParam (p, ParamIDs::vel (0), 0.5f);
+        std::snprintf (msg, sizeof msg, "VelSens 0 %% vs 100 %% bei Velocity 30: %.3f vs %.3f", v0, v1);
+        CHECK (v1 < v0 * 0.3f, msg);
+
+        for (int s = 0; s < numSlots; ++s) setParam (p, ParamIDs::mute (s), 0.0f);
+        setParam (p, ParamIDs::xyX, 0.5f); setParam (p, ParamIDs::xyY, 0.5f);
+    }
+
+    // Library-Vorhoeren laedt nichts in die Slots
+    {
+        const auto before = p.getSlotFile (0);
+        CHECK (p.previewFile (writeWav ("prev", clap (sr), sr)), "Vorhoeren: Datei geladen");
+        juce::AudioBuffer<float> buf (2, 4800);
+        juce::MidiBuffer m;
+        p.processBlock (buf, m);
+        CHECK (buf.getMagnitude (0, 0, buf.getNumSamples()) > 0.01f && p.getSlotFile (0) == before,
+               "Vorhoeren klingt und laesst Slot A unveraendert");
+    }
+
     // State speichern / laden
     {
         p.setRootOverride (2, 50);
@@ -187,7 +247,7 @@ int main()
         p.getStateInformation (mb);
         QuadShooterProcessor q;
         q.setPlayConfigDetails (0, 2, sr, 512);
-        q.prepareToPlay (sr, 512);
+        q.prepareToPlay (sr, 8192);
         q.setStateInformation (mb.getData(), (int) mb.getSize());
         CHECK (q.getSlotFile (3) == p.getSlotFile (3) && q.getRootOverride (2) == 50
                && std::abs (q.getSyncOffset (1) - 1.0f) < 0.3f, "State: Slots, Root-Override und Key Sync wiederhergestellt");

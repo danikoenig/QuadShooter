@@ -35,6 +35,17 @@ struct Knob
         slider.setDoubleClickReturnValue (true, param->convertFrom0to1 (param->getDefaultValue()));
     }
 
+    // Auf einen anderen Parameter umhaengen (Edit-Zeile beim Slot-Wechsel)
+    void rebind (juce::AudioProcessorValueTreeState& apvts, const juce::String& paramID, juce::Colour c)
+    {
+        attachment.reset();
+        slider.getProperties().set ("accent", c.toString());
+        attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, paramID, slider);
+        auto* param = apvts.getParameter (paramID);
+        slider.setDoubleClickReturnValue (true, param->convertFrom0to1 (param->getDefaultValue()));
+        slider.repaint();
+    }
+
     void setBounds (juce::Rectangle<int> r, int labelH = 16)
     {
         label.setBounds (r.removeFromTop (labelH));
