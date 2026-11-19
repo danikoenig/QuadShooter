@@ -68,6 +68,8 @@ struct ReelAccess
         put ("revOn", in (e, e.revOn));
         put ("revLeft", in (e, e.moveLeft[fxReverb]));
         put ("dlyPing", in (e, e.dlyPing));
+        put ("clipOn", in (e, e.clipOn));
+        put ("clipDrive", in (e, e.kClipDrive.slider));
         return juce::var (o);
     }
 
@@ -173,9 +175,9 @@ int ReelAccess::run (int argc, char** argv)
     p.activeSlot = 0;
 
     // Titel: Stab A aus der Library vorhoeren
-    at (b (0), [&] { p.previewFile (files[0]); });
+    for (double beat : { 0.0, 1.0, 2.0, 3.0 })
+        at (b (beat), [&] { p.previewFile (files[2]); });
     at (b (3.9), [&] { setParam (p, ParamIDs::gain, -4.0f); });
-    at (b (2), [&] { p.previewFile (files[0]); });
 
     // Drag: 4 Samples in A, B, C, D (Drops auf Beat 5.5, 7.5, 9.5, 11.5)
     const juce::Point<float> start (900.0f, 620.0f);
@@ -198,7 +200,6 @@ int ReelAccess::run (int argc, char** argv)
         {
             ReelAccess::hover (ReelAccess::slot (ed, i), false);
             p.loadSample (i, files[(size_t) i]);
-            p.setRootOverride (i, 60);   // Akkord-Stabs: Grundton von Hand auf C3
             ReelAccess::changed (ed);
             ReelAccess::select (ed, i);
             p.triggerPreview (i);
@@ -235,51 +236,53 @@ int ReelAccess::run (int argc, char** argv)
         kf (b (23.8), puck (xyAt (b (23.5))));
     }
 
-    // Tune: Pitch-Slider D auf +12, C auf -12 (Beat 24..34)
+    // Shape: pro Slot in der Edit-Zeile (Beat 24..34): B Pitch -3, D Decay kurz, C Low Cut
     for (int k = 24; k < 34; ++k)
         note (b (k), 60, 112);
-    auto sliderDrag = [&] (int slotIdx, double b0, double b1, float target)
+    auto knobDrag = [&] (int slotIdx, juce::Slider& knob, const juce::String& id, double b0, double b1, float from, float to, float dy)
     {
-        auto r = ReelAccess::in (ed, ReelAccess::slot (ed, slotIdx).pitchSlider).toFloat();
-        const float cx = r.getCentreX(), cy = r.getCentreY();
-        const float toX = cx + target / 12.0f * r.getWidth() * 0.5f;
-        kf (b (b0 - 0.6), { cx, cy });
-        kf (b (b0), { cx, cy }, true);
-        kf (b (b1), { toX, cy }, true);
-        kf (b (b1 + 0.3), { toX, cy });
-        at (b (b0), [&, slotIdx] { ReelAccess::select (ed, slotIdx); });
+        const auto sc = centre (ReelAccess::in (ed, ReelAccess::slot (ed, slotIdx))).translated (0.0f, -40.0f);
+        kf (b (b0 - 1.0), sc); kf (b (b0 - 0.8), sc, true); kf (b (b0 - 0.65), sc);
+        at (b (b0 - 0.8), [&, slotIdx] { ReelAccess::select (ed, slotIdx); });
+        auto kr = ReelAccess::in (ed, knob).toFloat();
+        const juce::Point<float> kc (kr.getCentreX(), kr.getCentreY() - 6.0f);
+        kf (b (b0 - 0.25), kc); kf (b (b0), kc, true);
+        kf (b (b1), kc.translated (0.0f, dy), true); kf (b (b1 + 0.25), kc.translated (0.0f, dy));
+        auto* prm = p.apvts.getParameter (id);
+        const float n0 = prm->convertTo0to1 (from), n1 = prm->convertTo0to1 (to);
         for (double beat = b0; beat <= b1 + 0.001; beat += 0.125)
         {
-            const float v = (float) (ease ((beat - b0) / (b1 - b0)) * target);
-            at (b (beat), [&, slotIdx, v] { setParam (p, ParamIDs::tune (slotIdx), v); });
+            const float v = prm->convertFrom0to1 (n0 + (float) ease ((beat - b0) / (b1 - b0)) * (n1 - n0));
+            at (b (beat), [&, id, v] { setParam (p, id, v); });
         }
     };
-    sliderDrag (3, 25.0, 27.5, 12.0f);
-    sliderDrag (1, 29.0, 31.5, -12.0f);
+    auto& es = ed.editStrip;
+    knobDrag (1, es.kTune.slider,   ParamIDs::tune (1),   25.0, 26.5, 0.0f, -3.0f, 46.0f);
+    knobDrag (3, es.kDecay.slider,  ParamIDs::decay (3),  28.0, 29.5, 10000.0f, 160.0f, 60.0f);
+    knobDrag (2, es.kLowCut.slider, ParamIDs::lowCut (2), 31.0, 32.5, 20.0f, 380.0f, -40.0f);
+
+    // One big clap: Clipper an, Drive hoch, Auto Gain an (Beat 34..42)
     {
-        const auto ks = centre (ReelAccess::in (ed, ed.keySyncButton));
-        kf (b (32.6), ks); kf (b (33.0), ks, true); kf (b (33.2), ks);
-        at (b (33.0), [&] { setParam (p, ParamIDs::keySync, 1.0f); });
+        for (int k = 34; k < 42; ++k)
+            note (b (k), 60, 112);
+        const auto con = centre (ReelAccess::in (ed, ed.clipOn));
+        kf (b (33.5), con); kf (b (34.0), con, true); kf (b (34.2), con);
+        at (b (34.0), [&] { setParam (p, ParamIDs::clipOn, 1.0f); });
+        auto dr = ReelAccess::in (ed, ed.kClipDrive.slider).toFloat();
+        const juce::Point<float> dc (dr.getCentreX(), dr.getCentreY() - 6.0f);
+        kf (b (34.6), dc); kf (b (35.0), dc, true); kf (b (39.0), dc.translated (0.0f, -70.0f), true); kf (b (39.3), dc.translated (0.0f, -70.0f));
+        for (double beat = 35.0; beat <= 39.001; beat += 0.125)
+        {
+            const float v = (float) (ease ((beat - 35.0) / 4.0) * 10.0);
+            at (b (beat), [&, v] { setParam (p, ParamIDs::clipDrive, v); });
+        }
     }
 
-    // Chromatic: House-Stab-Riff Cm, Ab, Bb, G (Beat 34..42)
+    // Space: Delay (Ping-Pong 1/8.) + Reverb, dann Reihenfolge tauschen (Beat 42..52)
     {
-        const auto ch = centre (ReelAccess::in (ed, ed.chromaticButton));
-        kf (b (33.4), ch); kf (b (33.8), ch, true); kf (b (34.0), ch);
-        at (b (33.8), [&] { setParam (p, ParamIDs::chromatic, 1.0f); setParam (p, ParamIDs::ampDecay, 450.0f);
-                             setParam (p, ParamIDs::gain, 2.0f); });
-        const double riff[][2] = { { 34.5, 60 }, { 35.5, 60 }, { 36.25, 60 }, { 36.5, 56 }, { 37.5, 56 }, { 38.5, 58 },
-                                   { 39.5, 58 }, { 40.25, 58 }, { 40.5, 55 }, { 41.5, 55 } };
-        for (auto& r : riff)
-            note (b (r[0]), (int) r[1], 112, BEAT * 0.4);
-        kf (b (35.0), { 1180.0f, 300.0f });
-    }
-
-    // FX: Delay (Ping-Pong 1/8.) + Reverb, dann Reihenfolge tauschen (Beat 42..52)
-    {
-        at (b (41.8), [&] { setParam (p, ParamIDs::ampDecay, 260.0f); setParam (p, ParamIDs::dlyPing, 1.0f);
+        at (b (41.8), [&] { setParam (p, ParamIDs::dlyPing, 1.0f);
                              setParam (p, ParamIDs::dlyFb, 0.45f); setParam (p, ParamIDs::dlyMix, 0.4f);
-                             setParam (p, ParamIDs::revSize, 0.75f); setParam (p, ParamIDs::revMix, 0.35f); });
+                             setParam (p, ParamIDs::revSize, 0.7f); setParam (p, ParamIDs::revMix, 0.35f); });
         const auto dOn = centre (ReelAccess::in (ed, ed.dlyOn));
         const auto rOn = centre (ReelAccess::in (ed, ed.revOn));
         kf (b (41.3), dOn); kf (b (41.8), dOn, true); kf (b (42.0), dOn);
@@ -288,14 +291,10 @@ int ReelAccess::run (int argc, char** argv)
         at (b (44.0), [&] { setParam (p, ParamIDs::revOn, 1.0f); });
         const auto rl = centre (ReelAccess::in (ed, ed.moveLeft[fxReverb]));
         kf (b (47.4), rl); kf (b (47.8), rl, true); kf (b (48.0), rl);
-        juce::Array<juce::var> c1;
-        c1.add (b (47.8)); c1.add ("reorder");
-        clicks.add (c1);
         at (b (47.8), [&] { ed.moveFx (fxReverb, -1); });
         at (b (47.85), [&] { ReelAccess::changed (ed); });
-        for (double beat : { 42.0, 44.0, 46.0, 48.0, 50.0 })
+        for (double beat : { 42.0, 44.0, 46.0, 48.0, 50.0, 52.0 })
             note (b (beat), 60, 112, BEAT * 0.5);
-        note (b (52.0), 60, 112, BEAT * 0.5);
     }
 
     std::sort (ev.begin(), ev.end(), [] (auto& x, auto& y) { return x.t < y.t; });

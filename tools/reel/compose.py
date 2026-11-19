@@ -27,18 +27,19 @@ FOCUS = {
     "drag":  pad(union(R0["library"], R0["slotA"], R0["slotD"]), 8),
     "xy":    pad(R0["xy"], 12),
     "tune":  pad(union(R0["xy"], R0["slotB"], R0["slotD"], R0["keySync"]), 10),
-    "chrom": pad(union(R0["xy"], R0["slotB"], R0["slotD"], R0["chromatic"]), 10),
+    "shape": pad(union(R0["slotA"], R0["slotD"], R0["edit"]), 10),
+    "clip":  pad(union(R0["mClip"], R0["mOut"]), 10),
     "fx":    pad(union(R0["mDelay"], R0["mReverb"], R1["mDelay"], R1["mReverb"]), 10),
 }
 FOCUS["drag"][3] = R0["slotC"][1] + R0["slotC"][3] + 8 - FOCUS["drag"][1]   # unten bis Slot C
 
 SCENES = [  # start, ende, titel, untertitel, fokus, farbe
     (0.0, 1 * BAR, "", "", "full", SLOT[0]),
-    (1 * BAR, 3.5 * BAR, "DRAG 4 SOUNDS", "from the library into A · B · C · D", "drag", SLOT[0]),
+    (1 * BAR, 3.5 * BAR, "DRAG 4 CLAPS", "from the library into A · B · C · D", "drag", SLOT[0]),
     (3.5 * BAR, 6 * BAR, "BLEND 4 LAYERS", "one XY pad mixes them all", "xy", SLOT[1]),
-    (6 * BAR, 8.5 * BAR, "TUNE EACH LAYER", "pitch detect · key sync · 1-cent slider", "tune", SLOT[2]),
-    (8.5 * BAR, 10.5 * BAR, "PLAY IT CHROMATIC", "all four layers across your keys", "chrom", SLOT[3]),
-    (10.5 * BAR, 13 * BAR, "DELAY · REVERB · CLIP", "chain them in any order", "fx", (77, 208, 225)),
+    (6 * BAR, 8.5 * BAR, "SHAPE EACH LAYER", "pitch · decay · cut per slot", "shape", SLOT[2]),
+    (8.5 * BAR, 10.5 * BAR, "ONE BIG CLAP", "clipper with auto gain", "clip", (255, 77, 94)),
+    (10.5 * BAR, 13 * BAR, "ADD SPACE", "delay · reverb · in any order", "fx", (77, 208, 225)),
 ]
 
 def scene_at(t):
@@ -203,16 +204,16 @@ def render(f):
         logo(e, W / 2 - 92, 430, 84, 16)
         centered(e, 660, "QUAD SHOOTER", font("black", 116), TEXT)
         centered(e, 805, "free 4-slot one-shot layering sampler", F_TSUB, DIM)
-        lines = ["4 slots  ·  XY mix  ·  key sync", "delay  ·  reverb  ·  clipper  ·  limiter"]
+        lines = ["layer 4 one-shots  ·  XY mix", "pitch detect  ·  key sync  ·  chromatic", "delay  ·  reverb  ·  clipper  ·  limiter"]
         for k, ln in enumerate(lines):
             centered(e, 930 + k * 62, ln, font("semi", 40), TEXT)
-        centered(e, 1110, "VST3 + AU  ·  Mac (Apple Silicon)", font("bold", 40), SLOT[1])
+        centered(e, 1170, "VST3 + AU  ·  Mac (Apple Silicon)", font("bold", 40), SLOT[1])
         fu = font("bold", 38)
         tw = e.textlength(URL, font=fu)
         bx0 = (W - tw) / 2 - 36
-        e.rounded_rectangle([bx0, 1240, W - bx0, 1340], radius=24, fill=(29, 31, 36, 255), outline=SLOT[0] + (255,), width=3)
-        centered(e, 1266, URL, fu, TEXT)
-        centered(e, 1380, "free download  ·  link in bio", font("med", 36), DIM)
+        e.rounded_rectangle([bx0, 1270, W - bx0, 1370], radius=24, fill=(29, 31, 36, 255), outline=SLOT[0] + (255,), width=3)
+        centered(e, 1296, URL, fu, TEXT)
+        centered(e, 1410, "free download  ·  link in bio", font("med", 36), DIM)
         centered(e, 1700, "by Dani Koenig", font("semi", 36), DIM)
         img = Image.blend(img, end, u) if u < 1 else end
     return img

@@ -29,5 +29,6 @@ private:
     Knob kStart, kEnd, kLevel, kPan, kHold, kDecay, kTune, kTone, kLowCut, kHighCut, kVel;
     std::vector<Group> groups;
 
+    friend struct ReelAccess;   // nur fuer den Reel-Renderer
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EditStrip)
 };
