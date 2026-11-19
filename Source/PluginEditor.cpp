@@ -135,7 +135,7 @@ void QuadShooterEditor::paint (juce::Graphics& g)
     g.drawText ("QUAD SHOOTER", logoArea.getX() + 34, logoArea.getY() + 4, 220, 22, juce::Justification::centredLeft);
     g.setColour (textDim);
     g.setFont (juce::FontOptions (11.0f));
-    g.drawText ("by Dani Koenig", logoArea.getX() + 34, logoArea.getY() + 24, 200, 14, juce::Justification::centredLeft);
+    g.drawText ("by Dani Koenig   v" JucePlugin_VersionString, logoArea.getX() + 34, logoArea.getY() + 24, 200, 14, juce::Justification::centredLeft);
 
     g.setColour (textDim);
     g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
