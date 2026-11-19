@@ -18,4 +18,7 @@ namespace PitchDetector
 
     // "C3", "F#1" usw. (C3 = 60, wie Bitwig/Ableton)
     juce::String noteName (int midi);
+
+    // "F#2", "Eb1", "c3" -> MIDI (C3 = 60). -1 wenn ungueltig.
+    int parseNoteName (const juce::String& text);
 }

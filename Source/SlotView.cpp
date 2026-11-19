@@ -245,6 +245,17 @@ void SlotView::paint (juce::Graphics& g)
     }
     else if (ov != rootAuto && ! peaks.isEmpty()) right = "manual";
     else if (! peaks.isEmpty() && tonal)      right = "auto";
+    else if (! peaks.isEmpty())               right = "set root";
+
+    if (! peaks.isEmpty())
+    {
+        juce::Path arrow;
+        const float ax = (float) inner.getRight() - 4.0f, ay = (float) inner.getCentreY();
+        arrow.addTriangle (ax - 3.5f, ay - 2.0f, ax + 3.5f, ay - 2.0f, ax, ay + 2.5f);
+        g.setColour (textDim);
+        g.fillPath (arrow);
+        inner.removeFromRight (14);
+    }
     g.setColour (rightCol);
     g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
     g.drawText (right, inner, juce::Justification::centredRight);
@@ -295,8 +306,22 @@ void SlotView::mouseDown (const juce::MouseEvent& e)
     const auto pos = e.getPosition();
     if (notePill.contains (pos))
     {
-        if (! peaks.isEmpty())
-            showRootMenu();
+        if (peaks.isEmpty())
+            return;
+        // Doppelklick = Ton eintippen, Einzelklick = Menue (kurz warten, ob ein zweiter Klick kommt)
+        if (e.getNumberOfClicks() >= 2)
+        {
+            ++pendingMenuClick;
+            showRootEditor();
+            return;
+        }
+        const int id = ++pendingMenuClick;
+        juce::Timer::callAfterDelay (juce::MouseEvent::getDoubleClickTimeout() + 20,
+                                     [safe = juce::Component::SafePointer<SlotView> (this), id]
+                                     {
+                                         if (safe != nullptr && safe->pendingMenuClick == id)
+                                             safe->showRootMenu();
+                                     });
         return;
     }
     if (waveArea.contains (pos) || badge.contains (pos))
@@ -321,6 +346,7 @@ void SlotView::showRootMenu()
     m.addItem (1, det.tonal ? "Auto (detected " + PitchDetector::noteName ((int) std::round (det.midi)) + ")"
                             : juce::String ("Auto (no pitch detected)"), true, ov == rootAuto);
     m.addItem (2, "Not tonal (never pitch to the lead)", true, ov == rootNone);
+    m.addItem (3, "Type root note...  (or double-click)");
     m.addSeparator();
     for (int oct = -1; oct <= 6; ++oct)
     {
@@ -341,8 +367,59 @@ void SlotView::showRootMenu()
                          auto& self = *safe;
                          if (res == 1)        self.processor.setRootOverride (self.index, rootAuto);
                          else if (res == 2)   self.processor.setRootOverride (self.index, rootNone);
+                         else if (res == 3)   self.showRootEditor();
                          else if (res >= 100) self.processor.setRootOverride (self.index, res - 100);
                      });
+}
+
+void SlotView::showRootEditor()
+{
+    if (rootEditor == nullptr)
+    {
+        rootEditor = std::make_unique<juce::TextEditor>();
+        rootEditor->setFont (juce::FontOptions (12.0f, juce::Font::bold));
+        rootEditor->setColour (juce::TextEditor::backgroundColourId, inset);
+        rootEditor->setColour (juce::TextEditor::textColourId, text);
+        rootEditor->setColour (juce::TextEditor::outlineColourId, colour);
+        rootEditor->setColour (juce::TextEditor::focusedOutlineColourId, colour);
+        rootEditor->setJustification (juce::Justification::centredLeft);
+        rootEditor->setIndents (8, 4);
+        rootEditor->setTextToShowWhenEmpty ("e.g. F#2, Eb1, C3 (Enter)", textDim);
+        rootEditor->onReturnKey = [this] { applyRootText(); };
+        rootEditor->onEscapeKey = [this] { rootEditor->setVisible (false); };
+        rootEditor->onFocusLost = [this] { rootEditor->setVisible (false); };
+        addChildComponent (*rootEditor);
+    }
+    const float root = processor.getEffectiveRoot (index);
+    rootEditor->setText (root > noPitch + 1.0f ? PitchDetector::noteName ((int) std::round (root)) : juce::String(),
+                         juce::dontSendNotification);
+    rootEditor->setBounds (notePill);
+    rootEditor->setVisible (true);
+    rootEditor->grabKeyboardFocus();
+    rootEditor->selectAll();
+}
+
+void SlotView::applyRootText()
+{
+    const auto t = rootEditor->getText().trim().toLowerCase();
+    if (t == "auto" || t.isEmpty())
+        processor.setRootOverride (index, rootAuto);
+    else if (t == "-" || t == "none")
+        processor.setRootOverride (index, rootNone);
+    else
+    {
+        const int midi = PitchDetector::parseNoteName (t);
+        if (midi < 0)
+        {
+            rootEditor->setColour (juce::TextEditor::outlineColourId, clip);   // ungueltig
+            rootEditor->repaint();
+            return;
+        }
+        processor.setRootOverride (index, midi);
+    }
+    rootEditor->setColour (juce::TextEditor::outlineColourId, colour);
+    rootEditor->setVisible (false);
+    repaint();
 }
 
 void SlotView::showSlotMenu()

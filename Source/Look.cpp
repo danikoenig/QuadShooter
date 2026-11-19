@@ -148,9 +148,10 @@ void QuadLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b
         g.fillRoundedRectangle (on ? right : left, 4.0f);
         g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
         g.setColour (on ? textDim : bgBottom);
-        g.drawText ("SOFT", left, juce::Justification::centred);
+        g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
+        g.drawFittedText (b.getProperties().getWithDefault ("left", "SOFT").toString(), left.toNearestInt(), juce::Justification::centred, 1, 0.7f);
         g.setColour (on ? bgBottom : textDim);
-        g.drawText ("HARD", right, juce::Justification::centred);
+        g.drawFittedText (b.getProperties().getWithDefault ("right", "HARD").toString(), right.toNearestInt(), juce::Justification::centred, 1, 0.7f);
         return;
     }
 
@@ -204,7 +205,7 @@ void QuadLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b
         g.fillEllipse (dot);
         g.setColour (on ? text : textDim);
         g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
-        g.drawText (b.getButtonText(), r.withTrimmedLeft (22.0f).withTrimmedRight (6.0f), juce::Justification::centred);
+        g.drawFittedText (b.getButtonText(), r.withTrimmedLeft (22.0f).withTrimmedRight (6.0f).toNearestInt(), juce::Justification::centred, 1, 0.7f);
         return;
     }
 

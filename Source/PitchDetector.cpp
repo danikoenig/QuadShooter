@@ -10,6 +10,29 @@ juce::String noteName (int midi)
     return juce::MidiMessage::getMidiNoteName (midi, true, true, 3);
 }
 
+int parseNoteName (const juce::String& text)
+{
+    auto t = text.trim().replace (juce::String::fromUTF8 ("\xe2\x99\xaf"), "#").replace (juce::String::fromUTF8 ("\xe2\x99\xad"), "b");
+    if (t.isEmpty())
+        return -1;
+    static const int pcs[] = { 9, 11, 0, 2, 4, 5, 7 };   // A B C D E F G
+    const auto letter = juce::CharacterFunctions::toUpperCase (t[0]);
+    if (letter < 'A' || letter > 'G')
+        return -1;
+    int pc = pcs[letter - 'A'];
+    int i = 1;
+    while (i < t.length() && (t[i] == '#' || t[i] == 'b' || t[i] == 'B'))
+    {
+        pc += t[i] == '#' ? 1 : -1;
+        ++i;
+    }
+    const auto octText = t.substring (i).trim();
+    if (octText.isEmpty() || ! octText.containsOnly ("-0123456789"))
+        return -1;
+    const int midi = (octText.getIntValue() + 2) * 12 + pc;
+    return midi >= 0 && midi <= 127 ? midi : -1;
+}
+
 PitchResult detect (const juce::AudioBuffer<float>& buffer, double sr)
 {
     PitchResult result;

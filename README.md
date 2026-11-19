@@ -14,10 +14,14 @@ By Dani Koenig. Sister plugin of [One Shooter](https://github.com/danikoenig/One
 - **Key Sync**: pick a lead slot, the other tonal slots are pitched to its note
   - *Nearest*: same note in the closest octave (keeps the character of each sample)
   - *Exact*: exactly the same note
-  - Click the note under a waveform to set the root note by hand
+  - Click the note under a waveform for the root menu, double-click to type it (e.g. F#2, Eb1)
 - **Chromatic mode**: play all slots across the keyboard (C3 = original pitch), polyphonic
 - **Amp**: Attack, Decay and Release for all slots (Release Off = pure one-shot)
-- **Clipper** in the style of KNOCK (soft / hard, 4x oversampling), from One Shooter
+- **FX chain after the amp, order freely with the arrows**:
+  - **Delay**: Mono or Ping-Pong, tempo synced (1/64 to 1/1, dotted, triplets) or free in ms, Feedback, Mix
+  - **Reverb**: Size from a tight drum room to a big space for pads, Damp, Mix
+  - **Clipper** in the style of KNOCK (soft / hard, 4x oversampling) with **Auto Gain** (loudness matched, so you hear the saturation, not just more level)
+- **Output**: Gain into a **Limiter** (ceiling -1 dB) with GR meter
 - **Library**: drop a folder, all one-shots are indexed (files stay where they are). Click = listen, drag a sample onto a slot = load, double-click = load into the selected slot. Prev / Next per slot. Takes over the One Shooter index on first start.
 
 ## Install

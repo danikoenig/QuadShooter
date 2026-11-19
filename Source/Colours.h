@@ -11,6 +11,8 @@ namespace ShooterColours
     const juce::Colour accent        { 0xffff7a2f };   // Orange (wie One Shooter)
     const juce::Colour accent2       { 0xffffb347 };   // Amber
     const juce::Colour clip          { 0xffff4d5e };   // Clipper = Rot
+    const juce::Colour delayCol      { 0xff4dd0e1 };   // Delay = Tuerkis
+    const juce::Colour reverbCol     { 0xff9fa8da };   // Reverb = Lavendel
     const juce::Colour env           { 0xffffd54f };   // Amp Envelope = Gelb
     const juce::Colour text          { 0xffeceef2 };
     const juce::Colour textDim       { 0xff7d828c };

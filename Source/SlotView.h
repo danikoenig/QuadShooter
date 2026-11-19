@@ -53,6 +53,8 @@ public:
 private:
     void openFileChooser();
     void showRootMenu();
+    void showRootEditor();
+    void applyRootText();
     void showSlotMenu();
     juce::String noteText() const;
 
@@ -71,6 +73,8 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> pitchAtt;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> muteAtt;
     std::unique_ptr<juce::FileChooser> chooser;
+    std::unique_ptr<juce::TextEditor> rootEditor;
+    int pendingMenuClick = 0;
 
     juce::Rectangle<int> badge, nameArea, waveArea, notePill, pitchArea;
 

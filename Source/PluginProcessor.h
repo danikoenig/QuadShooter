@@ -45,8 +45,48 @@ namespace ParamIDs
     inline constexpr const char* clipOn     = "clipOn";
     inline constexpr const char* clipHard   = "clipHard";
     inline constexpr const char* clipDrive  = "clipDrive";
+    inline constexpr const char* clipAuto   = "clipAuto";
+    // Delay
+    inline constexpr const char* dlyOn      = "dlyOn";
+    inline constexpr const char* dlyPing    = "dlyPing";
+    inline constexpr const char* dlySync    = "dlySync";
+    inline constexpr const char* dlyNote    = "dlyNote";
+    inline constexpr const char* dlyMs      = "dlyMs";
+    inline constexpr const char* dlyFb      = "dlyFb";
+    inline constexpr const char* dlyMix     = "dlyMix";
+    // Reverb
+    inline constexpr const char* revOn      = "revOn";
+    inline constexpr const char* revSize    = "revSize";
+    inline constexpr const char* revDamp    = "revDamp";
+    inline constexpr const char* revMix     = "revMix";
+    // Reihenfolge der FX nach dem Amp
+    inline constexpr const char* fxOrder    = "fxOrder";
     // Output
     inline constexpr const char* gain       = "gain";
+    inline constexpr const char* limiter    = "limiter";
+}
+
+// FX-Module nach dem Amp, Reihenfolge waehlbar
+enum FxModule { fxDelay = 0, fxReverb = 1, fxClipper = 2 };
+inline constexpr int numFx = 3;
+inline const int fxOrders[6][3] = { { 0, 1, 2 }, { 1, 0, 2 }, { 0, 2, 1 }, { 2, 0, 1 }, { 1, 2, 0 }, { 2, 1, 0 } };
+inline const juce::StringArray fxOrderNames { "Delay > Reverb > Clip", "Reverb > Delay > Clip", "Delay > Clip > Reverb",
+                                              "Clip > Delay > Reverb", "Reverb > Clip > Delay", "Clip > Reverb > Delay" };
+inline int fxOrderIndexFor (const int order[3])
+{
+    for (int i = 0; i < 6; ++i)
+        if (fxOrders[i][0] == order[0] && fxOrders[i][1] == order[1] && fxOrders[i][2] == order[2])
+            return i;
+    return 0;
+}
+
+// Delay-Notenwerte (in Viertelnoten)
+inline const juce::StringArray delayNotes { "1/64", "1/32", "1/16T", "1/16", "1/16.", "1/8T", "1/8", "1/8.",
+                                            "1/4T", "1/4", "1/4.", "1/2", "1/1" };
+inline double delayNoteQuarters (int i)
+{
+    static const double q[] = { 1.0 / 16, 1.0 / 8, 1.0 / 6, 0.25, 0.375, 1.0 / 3, 0.5, 0.75, 2.0 / 3, 1.0, 1.5, 2.0, 4.0 };
+    return q[juce::jlimit (0, 12, i)];
 }
 
 inline constexpr float releaseOffValue = 5000.0f;
@@ -135,6 +175,8 @@ public:
     float getPlayPosition (int slot) const    { return playPos[(size_t) slot].load(); }
     float getClipReductionDb() const          { return clipReductionDb.load(); }
     float getOutputPeak() const               { return outputPeak.load(); }
+    float getLimitReductionDb() const         { return limitReductionDb.load(); }
+    double getHostBpm() const                 { return hostBpm.load(); }
     void  triggerPreview (int slot)           { previewRequest = slot; }   // -1 = alle Slots (XY-Mix)
     bool  previewFile (const juce::File& file);                           // Library: nur vorhoeren, nicht laden
     SampleLibrary& getLibrary()               { return *library; }
@@ -193,6 +235,25 @@ private:
     void releaseVoices (int note);
     void renderVoices (juce::AudioBuffer<float>& out, int startSample, int numSamples);
     void processClipper (juce::AudioBuffer<float>& buffer);
+    void processDelay (juce::AudioBuffer<float>& buffer);
+    void processReverb (juce::AudioBuffer<float>& buffer);
+    void processLimiter (juce::AudioBuffer<float>& buffer);
+
+    // Delay
+    juce::AudioBuffer<float> delayBuf;
+    int delayWrite = 0;
+    juce::SmoothedValue<float> delayTimeSmoothed;
+    float dlyLp[2] {}, dlyHp[2] {};
+    bool  delayWasOn = false;
+    // Reverb
+    juce::Reverb reverb;
+    bool  reverbWasOn = false;
+    // Clipper Auto Gain (Lautheitsabgleich)
+    float clipInPow = 0.0f, clipOutPow = 0.0f, clipAutoGain = 1.0f;
+    // Limiter
+    float limGain = 1.0f;
+    std::atomic<float> limitReductionDb { 0.0f };
+    std::atomic<double> hostBpm { 120.0 };
 
     juce::AudioFormatManager formatManager;
 
@@ -244,7 +305,10 @@ private:
     std::atomic<float> *pX = nullptr, *pY = nullptr, *pKeySync = nullptr, *pSyncMode = nullptr, *pLead = nullptr,
                        *pChromatic = nullptr, *pAttack = nullptr, *pAmpDecay = nullptr,
                        *pRelease = nullptr, *pClipOn = nullptr,
-                       *pClipHard = nullptr, *pClipDrive = nullptr, *pGain = nullptr;
+                       *pClipHard = nullptr, *pClipDrive = nullptr, *pGain = nullptr,
+                       *pDlyOn = nullptr, *pDlyPing = nullptr, *pDlySync = nullptr, *pDlyNote = nullptr, *pDlyMs = nullptr,
+                       *pDlyFb = nullptr, *pDlyMix = nullptr, *pRevOn = nullptr, *pRevSize = nullptr, *pRevDamp = nullptr,
+                       *pRevMix = nullptr, *pFxOrder = nullptr, *pLimiter = nullptr, *pClipAuto = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (QuadShooterProcessor)
 };

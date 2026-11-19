@@ -72,6 +72,14 @@ QuadShooterProcessor::QuadShooterProcessor()
     pClipOn = get (ParamIDs::clipOn);      pClipHard = get (ParamIDs::clipHard);
     pClipDrive = get (ParamIDs::clipDrive);
     pGain = get (ParamIDs::gain);
+    pDlyOn = get (ParamIDs::dlyOn);        pDlyPing = get (ParamIDs::dlyPing);
+    pDlySync = get (ParamIDs::dlySync);    pDlyNote = get (ParamIDs::dlyNote);
+    pDlyMs = get (ParamIDs::dlyMs);        pDlyFb = get (ParamIDs::dlyFb);
+    pDlyMix = get (ParamIDs::dlyMix);
+    pRevOn = get (ParamIDs::revOn);        pRevSize = get (ParamIDs::revSize);
+    pRevDamp = get (ParamIDs::revDamp);    pRevMix = get (ParamIDs::revMix);
+    pFxOrder = get (ParamIDs::fxOrder);    pLimiter = get (ParamIDs::limiter);
+    pClipAuto = get (ParamIDs::clipAuto);
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout QuadShooterProcessor::createLayout()
@@ -131,10 +139,30 @@ juce::AudioProcessorValueTreeState::ParameterLayout QuadShooterProcessor::create
 
     layout.add (std::make_unique<AudioParameterBool> (ParameterID { ParamIDs::clipOn, 1 },   "Clip On",   false));
     layout.add (std::make_unique<AudioParameterBool> (ParameterID { ParamIDs::clipHard, 1 }, "Clip Hard", false));
+    layout.add (std::make_unique<AudioParameterBool> (ParameterID { ParamIDs::clipAuto, 1 }, "Clip Auto Gain", true));
     addFloat (ParamIDs::clipDrive, "Clip Drive", { 0.0f, 24.0f, 0.1f }, 0.0f,
               [] (float v, int) { return "+" + String (v, 1) + " dB"; });
 
     addFloat (ParamIDs::gain,     "Gain",     { -36.0f, 12.0f, 0.1f }, -3.0f, db);
+    layout.add (std::make_unique<AudioParameterBool> (ParameterID { ParamIDs::limiter, 1 }, "Limiter", false));
+
+    layout.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamIDs::dlyOn, 1 },   "Delay On", false));
+    layout.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamIDs::dlyPing, 1 }, "Delay Ping-Pong", false));
+    layout.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamIDs::dlySync, 1 }, "Delay Sync", true));
+    layout.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamIDs::dlyNote, 1 }, "Delay Note", delayNotes, 7));
+    addFloat (ParamIDs::dlyMs,  "Delay Time",     { 1.0f, 2000.0f, 0.0f, 0.4f }, 250.0f, ms);
+    addFloat (ParamIDs::dlyFb,  "Delay Feedback", { 0.0f, 0.95f }, 0.35f, pct);
+    addFloat (ParamIDs::dlyMix, "Delay Mix",      { 0.0f, 1.0f }, 0.3f, pct);
+
+    layout.add (std::make_unique<AudioParameterBool> (ParameterID { ParamIDs::revOn, 1 }, "Reverb On", false));
+    addFloat (ParamIDs::revSize, "Reverb Size", { 0.0f, 1.0f }, 0.35f,
+              [] (float v, int) { return v < 0.25f ? String ("Room ") + String (roundToInt (v * 100.0f))
+                                       : v < 0.6f ? String ("Hall ") + String (roundToInt (v * 100.0f))
+                                                  : String ("Big ") + String (roundToInt (v * 100.0f)); });
+    addFloat (ParamIDs::revDamp, "Reverb Damp", { 0.0f, 1.0f }, 0.5f, pct);
+    addFloat (ParamIDs::revMix,  "Reverb Mix",  { 0.0f, 1.0f }, 0.25f, pct);
+
+    layout.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamIDs::fxOrder, 1 }, "FX Order", fxOrderNames, 0));
 
     return layout;
 }
@@ -169,6 +197,18 @@ void QuadShooterProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
 
     clipDriveSmoothed.reset (sampleRate * 4.0, 0.02);
     clipDriveSmoothed.setCurrentAndTargetValue (1.0f);
+
+    delayBuf.setSize (2, (int) (sampleRate * 4.5) + 8);
+    delayBuf.clear();
+    delayWrite = 0;
+    delayTimeSmoothed.reset (sampleRate, 0.08);
+    delayTimeSmoothed.setCurrentAndTargetValue ((float) (0.25 * sampleRate));
+    for (auto& x : dlyLp) x = 0.0f;
+    for (auto& x : dlyHp) x = 0.0f;
+
+    reverb.setSampleRate (sampleRate);
+    reverb.reset();
+    limGain = 1.0f;
 
     for (auto& v : voices)
         v.active = false;
@@ -571,7 +611,14 @@ void QuadShooterProcessor::processClipper (juce::AudioBuffer<float>& buffer)
 {
     const bool on = pClipOn->load() > 0.5f;
     const bool hard = pClipHard->load() > 0.5f;
+    const bool autoGain = pClipAuto->load() > 0.5f;
     clipDriveSmoothed.setTargetValue (on ? juce::Decibels::decibelsToGain (pClipDrive->load()) : 1.0f);
+
+    // Pegel vor dem Clipper (fuer Auto Gain)
+    double inSum = 0.0;
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        for (int i = 0; i < buffer.getNumSamples(); ++i)
+            inSum += (double) buffer.getSample (ch, i) * buffer.getSample (ch, i);
 
     juce::dsp::AudioBlock<float> block (buffer);
     auto up = oversampler->processSamplesUp (block);
@@ -599,6 +646,33 @@ void QuadShooterProcessor::processClipper (juce::AudioBuffer<float>& buffer)
     }
 
     oversampler->processSamplesDown (block);
+
+    // Auto Gain: Lautheit nach dem Clipper an die vorher angleichen (gleitend ~300 ms),
+    // so hoert man nur die Saettigung, nicht einfach mehr Pegel
+    {
+        double outSum = 0.0;
+        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+            for (int i = 0; i < buffer.getNumSamples(); ++i)
+                outSum += (double) buffer.getSample (ch, i) * buffer.getSample (ch, i);
+        const float n = (float) juce::jmax (1, buffer.getNumSamples() * buffer.getNumChannels());
+        const float a = 1.0f - std::exp (-(float) buffer.getNumSamples() / (0.3f * (float) currentSampleRate));
+        if (inSum / n > 1e-8)   // nur bei Signal nachfuehren
+        {
+            clipInPow  += a * ((float) (inSum / n)  - clipInPow);
+            clipOutPow += a * ((float) (outSum / n) - clipOutPow);
+        }
+        const float target = (autoGain && on && clipOutPow > 1e-10f)
+            ? juce::jlimit (0.06f, 2.0f, std::sqrt (clipInPow / clipOutPow)) : 1.0f;
+        const float startG = clipAutoGain;
+        const int numS2 = buffer.getNumSamples();
+        for (int i = 0; i < numS2; ++i)
+        {
+            const float g = startG + (target - startG) * (float) (i + 1) / (float) numS2;
+            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                buffer.setSample (ch, i, buffer.getSample (ch, i) * g);
+        }
+        clipAutoGain = target;
+    }
 
     const float prev = clipReductionDb.load();
     clipReductionDb = maxReduction > prev ? maxReduction : prev * 0.85f;
@@ -700,8 +774,25 @@ void QuadShooterProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         }
     }
 
-    if (oversampler != nullptr && buffer.getNumChannels() <= (int) oversampler->numChannels)
-        processClipper (buffer);
+    if (auto* ph = getPlayHead())
+        if (auto pos = ph->getPosition())
+            if (auto bpm = pos->getBpm())
+                hostBpm = juce::jlimit (20.0, 999.0, *bpm);
+
+    // FX in gewaehlter Reihenfolge
+    const int orderIdx = juce::jlimit (0, 5, (int) std::round (pFxOrder->load()));
+    for (int k = 0; k < numFx; ++k)
+    {
+        switch (fxOrders[orderIdx][k])
+        {
+            case fxDelay:  processDelay (buffer); break;
+            case fxReverb: processReverb (buffer); break;
+            default:
+                if (oversampler != nullptr && buffer.getNumChannels() <= (int) oversampler->numChannels)
+                    processClipper (buffer);
+                break;
+        }
+    }
 
     gainSmoothed.setTargetValue (juce::Decibels::decibelsToGain (pGain->load()));
     if (gainSmoothed.isSmoothing())
@@ -716,9 +807,143 @@ void QuadShooterProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     else
         buffer.applyGain (gainSmoothed.getTargetValue());
 
+    processLimiter (buffer);
+
     const float peak = buffer.getMagnitude (0, numSamples);
     const float prevPeak = outputPeak.load();
     outputPeak = peak > prevPeak ? peak : prevPeak * 0.9f;
+}
+
+//==============================================================================
+void QuadShooterProcessor::processDelay (juce::AudioBuffer<float>& buffer)
+{
+    const bool on = pDlyOn->load() > 0.5f;
+    if (! on)
+    {
+        if (delayWasOn) { delayBuf.clear(); delayWasOn = false; }
+        return;
+    }
+    delayWasOn = true;
+
+    const double sr = currentSampleRate;
+    const double sec = pDlySync->load() > 0.5f
+        ? delayNoteQuarters ((int) std::round (pDlyNote->load())) * 60.0 / hostBpm.load()
+        : pDlyMs->load() / 1000.0;
+    const int maxLen = delayBuf.getNumSamples() - 4;
+    delayTimeSmoothed.setTargetValue ((float) juce::jlimit (1.0, (double) maxLen, sec * sr));
+
+    const float fb = pDlyFb->load();
+    const float mix = pDlyMix->load();
+    const bool ping = pDlyPing->load() > 0.5f;
+    const int numCh = buffer.getNumChannels();
+    const int len = delayBuf.getNumSamples();
+    const float lpC = 1.0f - std::exp (-juce::MathConstants<float>::twoPi * 7000.0f / (float) sr);
+    const float hpC = 1.0f - std::exp (-juce::MathConstants<float>::twoPi * 90.0f / (float) sr);
+
+    float* dl = delayBuf.getWritePointer (0);
+    float* dr = delayBuf.getWritePointer (1);
+
+    for (int i = 0; i < buffer.getNumSamples(); ++i)
+    {
+        const float inL = buffer.getSample (0, i);
+        const float inR = numCh > 1 ? buffer.getSample (1, i) : inL;
+
+        // Lesen mit linearer Interpolation
+        const float d = delayTimeSmoothed.getNextValue();
+        double rp = (double) delayWrite - d;
+        while (rp < 0.0) rp += len;
+        const int r0 = (int) rp;
+        const int r1 = (r0 + 1) % len;
+        const float t = (float) (rp - r0);
+        float wl = dl[r0] + t * (dl[r1] - dl[r0]);
+        float wr = dr[r0] + t * (dr[r1] - dr[r0]);
+
+        // Feedback-Pfad etwas abdunkeln und entbassen
+        float f[2] = { wl, wr };
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            dlyLp[ch] += lpC * (f[ch] - dlyLp[ch]);
+            dlyHp[ch] += hpC * (dlyLp[ch] - dlyHp[ch]);
+            f[ch] = dlyLp[ch] - dlyHp[ch];
+        }
+
+        if (ping)
+        {
+            // Mono-Eingang links, Echos springen hin und her
+            dl[delayWrite] = 0.5f * (inL + inR) + f[1] * fb;
+            dr[delayWrite] = f[0] * fb;
+        }
+        else
+        {
+            dl[delayWrite] = inL + f[0] * fb;
+            dr[delayWrite] = inR + f[1] * fb;
+        }
+        delayWrite = (delayWrite + 1) % len;
+
+        if (numCh > 1)
+        {
+            buffer.setSample (0, i, inL + wl * mix);
+            buffer.setSample (1, i, inR + wr * mix);
+        }
+        else
+            buffer.setSample (0, i, inL + 0.5f * (wl + wr) * mix);
+    }
+}
+
+void QuadShooterProcessor::processReverb (juce::AudioBuffer<float>& buffer)
+{
+    const bool on = pRevOn->load() > 0.5f;
+    if (! on)
+    {
+        if (reverbWasOn) { reverb.reset(); reverbWasOn = false; }
+        return;
+    }
+    reverbWasOn = true;
+
+    juce::Reverb::Parameters rp;
+    rp.roomSize = 0.3f + 0.68f * pRevSize->load();   // kleiner Raum .. grosse Halle
+    rp.damping  = pRevDamp->load();
+    rp.wetLevel = pRevMix->load() * 0.6f;
+    rp.dryLevel = 1.0f;
+    rp.width    = 1.0f;
+    reverb.setParameters (rp);
+
+    if (buffer.getNumChannels() > 1)
+        reverb.processStereo (buffer.getWritePointer (0), buffer.getWritePointer (1), buffer.getNumSamples());
+    else
+        reverb.processMono (buffer.getWritePointer (0), buffer.getNumSamples());
+}
+
+void QuadShooterProcessor::processLimiter (juce::AudioBuffer<float>& buffer)
+{
+    if (pLimiter->load() < 0.5f)
+    {
+        limGain = 1.0f;
+        limitReductionDb = limitReductionDb.load() * 0.85f;
+        return;
+    }
+
+    // Peak-Limiter, Ceiling -1 dB: sofortiger Attack, 80 ms Release, danach harte Grenze
+    const float ceiling = juce::Decibels::decibelsToGain (-1.0f);
+    const float rel = std::exp (-1.0f / (0.08f * (float) currentSampleRate));
+    const int numCh = buffer.getNumChannels();
+    float minGain = 1.0f;
+
+    for (int i = 0; i < buffer.getNumSamples(); ++i)
+    {
+        float peak = 0.0f;
+        for (int ch = 0; ch < numCh; ++ch)
+            peak = juce::jmax (peak, std::abs (buffer.getSample (ch, i)));
+        const float target = peak * limGain > ceiling ? ceiling / juce::jmax (1e-9f, peak) : 1.0f;
+        limGain = target < limGain ? target : target + (limGain - target) * rel;
+        minGain = juce::jmin (minGain, limGain);
+        for (int ch = 0; ch < numCh; ++ch)
+            buffer.setSample (ch, i, juce::jlimit (-ceiling, ceiling, buffer.getSample (ch, i) * limGain));
+    }
+
+    const float red = -juce::Decibels::gainToDecibels (minGain);
+    const float prev = limitReductionDb.load();
+    limitReductionDb = red > prev ? red : prev * 0.85f;
 }
 
 //==============================================================================

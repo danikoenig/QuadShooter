@@ -32,6 +32,8 @@ private:
     void setLibraryVisible (bool show);
     void updateSlotInfo();
     void updateLeadButtons();
+    void moveFx (int module, int delta);
+    void layoutModules (juce::Rectangle<int> row);
 
     struct Module
     {
@@ -61,11 +63,24 @@ private:
     Knob kAttack, kAmpDecay, kRelease;
     Knob kClipDrive;
     Knob kGain;
-    juce::ToggleButton clipOn { "ON" }, clipHard { "HARD" };
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> clipOnAtt, clipHardAtt;
-    Meter clipMeter, outMeter;
+    juce::ToggleButton clipOn { "ON" }, clipHard { "HARD" }, clipAuto { "AUTO GAIN" };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> clipOnAtt, clipHardAtt, clipAutoAtt;
+    Meter clipMeter, outMeter, limMeter;
 
-    Module mAmp, mClip, mOut;
+    // Delay / Reverb
+    Knob kDlyNote, kDlyMs, kDlyFb, kDlyMix;
+    juce::ToggleButton dlyOn { "ON" }, dlyPing, dlySync { "SYNC" };
+    Knob kRevSize, kRevDamp, kRevMix;
+    juce::ToggleButton revOn { "ON" };
+    juce::ToggleButton limiterButton { "LIMIT" };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> dlyOnAtt, dlyPingAtt, dlySyncAtt, revOnAtt, limiterAtt;
+
+    // Pfeile zum Umsortieren der FX (Delay, Reverb, Clipper)
+    juce::TextButton moveLeft[numFx], moveRight[numFx];
+    int lastOrder = -1;
+    bool lastSync = true;
+
+    Module mAmp, mDelay, mReverb, mClip, mOut;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (QuadShooterEditor)
 };

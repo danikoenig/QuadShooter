@@ -112,6 +112,10 @@ int main()
         CHECK (! r.tonal, "Clap gilt als nicht tonal");
     }
 
+    CHECK (PitchDetector::parseNoteName ("C3") == 60 && PitchDetector::parseNoteName ("f#2") == 54
+           && PitchDetector::parseNoteName ("Eb1") == 39 && PitchDetector::parseNoteName ("C-1") == 12
+           && PitchDetector::parseNoteName ("H3") == -1, "Notennamen eintippen: C3, f#2, Eb1, C-1, ungueltig");
+
     std::printf ("Engine\n");
     QuadShooterProcessor p;
     p.setPlayConfigDetails (0, 2, sr, 512);
@@ -252,6 +256,97 @@ int main()
         for (int s = 0; s < numSlots; ++s) setParam (p, ParamIDs::mute (s), 0.0f);
         setParam (p, ParamIDs::keySync, 1.0f);
         setParam (p, ParamIDs::xyX, 0.5f); setParam (p, ParamIDs::xyY, 0.5f);
+    }
+
+    // FX: Delay (Sync, Ping-Pong), Reverb, Reihenfolge, Clipper Auto Gain, Limiter
+    {
+        // Nur der Clap (Slot C), kurz abgeschnitten -> Echos gut messbar
+        for (int s = 0; s < numSlots; ++s) setParam (p, ParamIDs::mute (s), s == 2 ? 0.0f : 1.0f);
+        setParam (p, ParamIDs::xyX, 0.0f); setParam (p, ParamIDs::xyY, 0.0f);
+        setParam (p, ParamIDs::decay (2), 20.0f);
+        setParam (p, ParamIDs::clipOn, 0.0f);
+        for (int i = 0; i < 3; ++i) render (p, 60, 0.05, sr);
+        render (p, 60, 1.0, sr);   // ausklingen
+
+        auto win = [&] (const juce::AudioBuffer<float>& o, int ch, double t) { return o.getRMSLevel (ch, (int) (t * sr), (int) (0.03 * sr)); };
+        char msg[160];
+
+        setParam (p, ParamIDs::dlyOn, 1.0f);   // Sync 1/8. bei 120 BPM = 375 ms
+        auto o = render (p, 60, 1.0, sr);
+        const float echo = win (o, 0, 0.375), gapE = win (o, 0, 0.25);
+        std::snprintf (msg, sizeof msg, "Delay 1/8. @120: Echo bei 375 ms %.4f, davor %.5f", echo, gapE);
+        CHECK (echo > 0.01f && gapE < echo * 0.1f, msg);
+
+        setParam (p, ParamIDs::dlyPing, 1.0f);
+        render (p, 60, 1.5, sr);
+        o = render (p, 60, 1.2, sr);
+        const float l1 = win (o, 0, 0.375), r1 = win (o, 1, 0.375), r2 = win (o, 1, 0.75);
+        std::snprintf (msg, sizeof msg, "Ping-Pong: 1. Echo L %.4f / R %.4f, 2. Echo R %.4f", l1, r1, r2);
+        CHECK (l1 > r1 * 4.0f && r2 > 0.005f, msg);
+        setParam (p, ParamIDs::dlyPing, 0.0f);
+
+        setParam (p, ParamIDs::dlySync, 0.0f);
+        setParam (p, ParamIDs::dlyMs, 200.0f);
+        render (p, 60, 1.5, sr);
+        o = render (p, 60, 1.0, sr);
+        std::snprintf (msg, sizeof msg, "Delay frei 200 ms: Echo %.4f", win (o, 0, 0.2));
+        CHECK (win (o, 0, 0.2) > 0.01f, msg);
+        setParam (p, ParamIDs::dlySync, 1.0f);
+        setParam (p, ParamIDs::dlyOn, 0.0f);
+
+        render (p, 60, 1.0, sr);
+        o = render (p, 60, 1.0, sr);
+        const float dryTail = win (o, 0, 0.5);
+        setParam (p, ParamIDs::revOn, 1.0f);
+        setParam (p, ParamIDs::revSize, 0.9f);
+        o = render (p, 60, 1.0, sr);
+        const float revTail = win (o, 0, 0.5);
+        std::snprintf (msg, sizeof msg, "Reverb gross: Fahne bei 500 ms %.5f -> %.4f", dryTail, revTail);
+        CHECK (revTail > dryTail * 10.0f && revTail > 0.001f, msg);
+
+        // Alle 6 Reihenfolgen laufen stabil
+        bool stable = true;
+        setParam (p, ParamIDs::dlyOn, 1.0f);
+        setParam (p, ParamIDs::clipOn, 1.0f);
+        for (int k = 0; k < 6; ++k)
+        {
+            setParam (p, ParamIDs::fxOrder, (float) k);
+            auto oo = render (p, 60, 0.3, sr);
+            stable = stable && std::isfinite (oo.getMagnitude (0, 0, oo.getNumSamples()));
+        }
+        CHECK (stable, "Alle 6 FX-Reihenfolgen stabil");
+        setParam (p, ParamIDs::fxOrder, 0.0f);
+        setParam (p, ParamIDs::dlyOn, 0.0f);
+        setParam (p, ParamIDs::revOn, 0.0f);
+        setParam (p, ParamIDs::decay (2), 10000.0f);
+        for (int s = 0; s < numSlots; ++s) setParam (p, ParamIDs::mute (s), 0.0f);
+        setParam (p, ParamIDs::xyX, 0.5f); setParam (p, ParamIDs::xyY, 0.5f);
+
+        // Clipper Auto Gain: +18 dB Drive wird nicht einfach lauter
+        render (p, 60, 1.0, sr);
+        auto rmsOf = [&] { auto oo = render (p, 60, 0.4, sr); return oo.getRMSLevel (0, 0, oo.getNumSamples()); };
+        setParam (p, ParamIDs::clipOn, 0.0f);
+        const float clean = rmsOf();
+        setParam (p, ParamIDs::clipOn, 1.0f);
+        setParam (p, ParamIDs::clipDrive, 18.0f);
+        setParam (p, ParamIDs::clipAuto, 0.0f);
+        const float loud = rmsOf();
+        setParam (p, ParamIDs::clipAuto, 1.0f);
+        const float autoG = rmsOf();
+        std::snprintf (msg, sizeof msg, "Clipper +18 dB: clean %.3f, ohne Auto Gain %.3f, mit %.3f", clean, loud, autoG);
+        CHECK (loud > clean * 1.5f && autoG > clean * 0.8f && autoG < clean * 1.25f, msg);
+        setParam (p, ParamIDs::clipOn, 0.0f);
+        setParam (p, ParamIDs::clipDrive, 0.0f);
+
+        // Limiter: +12 dB Gain bleibt unter -0.3 dB
+        setParam (p, ParamIDs::gain, 12.0f);
+        setParam (p, ParamIDs::limiter, 1.0f);
+        auto lim = render (p, 60, 0.5, sr);
+        const float pk = juce::jmax (lim.getMagnitude (0, 0, lim.getNumSamples()), lim.getMagnitude (1, 0, lim.getNumSamples()));
+        std::snprintf (msg, sizeof msg, "Limiter -1 dB bei +12 dB Gain: Peak %.3f (max %.3f)", pk, juce::Decibels::decibelsToGain (-1.0f));
+        CHECK (pk <= juce::Decibels::decibelsToGain (-1.0f) + 1e-4f, msg);
+        setParam (p, ParamIDs::limiter, 0.0f);
+        setParam (p, ParamIDs::gain, -3.0f);
     }
 
     // Library-Vorhoeren laedt nichts in die Slots
