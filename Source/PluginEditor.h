@@ -82,5 +82,6 @@ private:
 
     Module mAmp, mDelay, mReverb, mClip, mOut;
 
+    friend struct ReelAccess;   // nur fuer den Reel-Renderer (tests/ReelRender.cpp)
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (QuadShooterEditor)
 };

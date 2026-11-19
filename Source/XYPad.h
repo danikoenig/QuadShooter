@@ -29,4 +29,5 @@ private:
     float lastX = -1.0f, lastY = -1.0f;
     juce::uint32 lastMuteMask = 0xff;
     bool dragging = false;
+    friend struct ReelAccess;   // nur fuer den Reel-Renderer
 };

@@ -70,5 +70,6 @@ private:
     int lastAuditioned = -1;
     bool suppressAudition = false;
 
+    friend struct ReelAccess;   // nur fuer den Reel-Renderer (tests/ReelRender.cpp)
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LibraryPanel)
 };
