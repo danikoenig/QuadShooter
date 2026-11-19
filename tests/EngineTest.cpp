@@ -229,6 +229,31 @@ int main()
         setParam (p, ParamIDs::xyX, 0.5f); setParam (p, ParamIDs::xyY, 0.5f);
     }
 
+    // Pitch pro Slot (fein) und globales Amp-Decay
+    {
+        for (int s = 0; s < numSlots; ++s) setParam (p, ParamIDs::mute (s), s == 1 ? 0.0f : 1.0f);
+        setParam (p, ParamIDs::keySync, 0.0f);
+        setParam (p, ParamIDs::xyX, 1.0f); setParam (p, ParamIDs::xyY, 1.0f);
+        setParam (p, ParamIDs::tune (1), 0.37f);
+        for (int i = 0; i < 3; ++i) render (p, 60, 0.05, sr);
+        const float m = renderedPitch (p, 60, sr);
+        char msg[96];
+        std::snprintf (msg, sizeof msg, "Pitch B +0.37 st: klingt als %.3f (erw. 47.37)", m);
+        CHECK (std::abs (m - 47.37f) < 0.05f, msg);
+        setParam (p, ParamIDs::tune (1), 0.0f);
+
+        auto tail = [&] { auto o = render (p, 60, 0.8, sr); return o.getRMSLevel (0, (int) (0.4 * sr), (int) (0.4 * sr)); };
+        const float t0 = tail();
+        setParam (p, ParamIDs::ampDecay, 60.0f);
+        const float t1 = tail();
+        setParam (p, ParamIDs::ampDecay, 10000.0f);
+        std::snprintf (msg, sizeof msg, "Amp Decay 60 ms: Ausklang %.4f -> %.6f", t0, t1);
+        CHECK (t1 < t0 * 0.01f, msg);
+        for (int s = 0; s < numSlots; ++s) setParam (p, ParamIDs::mute (s), 0.0f);
+        setParam (p, ParamIDs::keySync, 1.0f);
+        setParam (p, ParamIDs::xyX, 0.5f); setParam (p, ParamIDs::xyY, 0.5f);
+    }
+
     // Library-Vorhoeren laedt nichts in die Slots
     {
         const auto before = p.getSlotFile (0);

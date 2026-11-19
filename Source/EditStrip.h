@@ -5,7 +5,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 // Edit-Zeile fuer den aktiven Slot (wie bei XLN XO):
-// Sample | Pan | Envelope | Pitch | Tone | Cut | VelSens
+// Sample | Level | Pan | Envelope | Pitch | Tone | Cut | VelSens
 class EditStrip : public juce::Component
 {
 public:
@@ -26,7 +26,7 @@ private:
     QuadShooterProcessor& processor;
     int slot = -1;
 
-    Knob kStart, kEnd, kPan, kHold, kDecay, kTune, kTone, kLowCut, kHighCut, kVel;
+    Knob kStart, kEnd, kLevel, kPan, kHold, kDecay, kTune, kTone, kLowCut, kHighCut, kVel;
     std::vector<Group> groups;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EditStrip)

@@ -58,7 +58,7 @@ private:
     juce::Rectangle<int> logoArea, leadLabel;
 
     // Module
-    Knob kAttack, kRelease;
+    Knob kAttack, kAmpDecay, kRelease;
     Knob kClipDrive;
     Knob kGain;
     juce::ToggleButton clipOn { "ON" }, clipHard { "HARD" };

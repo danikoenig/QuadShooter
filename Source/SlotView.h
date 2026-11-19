@@ -4,6 +4,20 @@
 #include "Knob.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 
+// Feiner Pitch-Slider: Ziehen = 2 Cent pro Pixel, mit Shift 0.2 Cent, Mausrad = 1 Cent (Shift 0.1)
+class FineSlider : public juce::Slider
+{
+public:
+    void mouseDown (const juce::MouseEvent& e) override;
+    void mouseDrag (const juce::MouseEvent& e) override;
+    void mouseUp (const juce::MouseEvent& e) override;
+    void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override;
+    juce::RangedAudioParameter* param = nullptr;   // fuer Automations-Gesten
+private:
+    float lastX = 0.0f;
+    bool dragging = false;
+};
+
 // Ein quadratischer Sample-Slot (A..D): Name, Waveform, erkannter Ton, Level.
 // Bearbeitet wird in der Edit-Zeile (EditStrip) unter den Slots.
 class SlotView : public juce::Component,
@@ -52,13 +66,13 @@ private:
     bool wasActive = false, wasLead = false, wasMuted = false, dragHover = false;
 
     juce::TextButton prevButton { "<" }, nextButton { ">" }, loadButton { "Load" }, muteButton { "M" };
-    juce::Slider levelSlider;
-    juce::Label levelValue;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> levelAtt;
+    FineSlider pitchSlider;
+    juce::Label pitchValue;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> pitchAtt;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> muteAtt;
     std::unique_ptr<juce::FileChooser> chooser;
 
-    juce::Rectangle<int> badge, nameArea, waveArea, notePill, levelArea;
+    juce::Rectangle<int> badge, nameArea, waveArea, notePill, pitchArea;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SlotView)
 };

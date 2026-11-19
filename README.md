@@ -7,8 +7,8 @@ By Dani Koenig. Sister plugin of [One Shooter](https://github.com/danikoenig/One
 
 ## Features
 
-- **4 sample slots A, B, C, D**, each with its own colour, waveform, Level and Mute
-- **Edit row** for the selected slot (like XLN XO): Sample Start/End, Pan, Envelope Hold/Decay, Pitch, Tone, Cut Low/High, VelSens
+- **4 sample slots A, B, C, D**, each with its own colour, waveform, Mute and a fine Pitch slider (±12 semitones in 1-cent steps, Shift = 0.2 cent)
+- **Edit row** for the selected slot (like XLN XO): Sample Start/End, Level, Pan, Envelope Hold/Decay, Pitch, Tone, Cut Low/High, VelSens
 - **XY Mix** in the middle: blend the four slots with one dot. Corner = one slot, centre = all four equal (equal power)
 - **Pitch detection** on every sample. Claps, hats and noise are recognised as "no pitch"
 - **Key Sync**: pick a lead slot, the other tonal slots are pitched to its note
@@ -16,7 +16,7 @@ By Dani Koenig. Sister plugin of [One Shooter](https://github.com/danikoenig/One
   - *Exact*: exactly the same note
   - Click the note under a waveform to set the root note by hand
 - **Chromatic mode**: play all slots across the keyboard (C3 = original pitch), polyphonic
-- **Amp**: Attack and Release for all slots (Release Off = pure one-shot)
+- **Amp**: Attack, Decay and Release for all slots (Release Off = pure one-shot)
 - **Clipper** in the style of KNOCK (soft / hard, 4x oversampling), from One Shooter
 - **Library**: drop a folder, all one-shots are indexed (files stay where they are). Click = listen, drag a sample onto a slot = load, double-click = load into the selected slot. Prev / Next per slot. Takes over the One Shooter index on first start.
 

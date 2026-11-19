@@ -319,7 +319,20 @@ void QuadLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int w, 
     auto r = juce::Rectangle<int> (x, y, w, h).toFloat();
     g.setColour (knobTrack);
     g.fillRoundedRectangle (r, r.getHeight() * 0.5f);
-    auto fill = r.withRight (juce::jmax (r.getX() + r.getHeight(), pos));
     g.setColour (col.withAlpha (s.isMouseOverOrDragging() ? 1.0f : 0.85f));
+    if ((bool) s.getProperties().getWithDefault ("bipolar", false))
+    {
+        // Von der Mitte aus fuellen, Mittelstrich als 0-Marke
+        const float c = r.getCentreX();
+        auto fill = juce::Rectangle<float>::leftTopRightBottom (juce::jmin (c, pos), r.getY(), juce::jmax (c, pos), r.getBottom());
+        if (fill.getWidth() > 0.5f)
+            g.fillRoundedRectangle (fill, 2.0f);
+        g.setColour (text.withAlpha (0.6f));
+        g.fillRect (c - 0.5f, r.getY() - 2.0f, 1.0f, r.getHeight() + 4.0f);
+        g.setColour (text);
+        g.fillRoundedRectangle (juce::Rectangle<float> (3.0f, r.getHeight() + 4.0f).withCentre ({ pos, r.getCentreY() }), 1.5f);
+        return;
+    }
+    auto fill = r.withRight (juce::jmax (r.getX() + r.getHeight(), pos));
     g.fillRoundedRectangle (fill, r.getHeight() * 0.5f);
 }

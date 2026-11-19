@@ -39,6 +39,7 @@ namespace ParamIDs
     inline constexpr const char* chromatic  = "chromatic";
     // Amp (global; Hold/Decay sind pro Slot)
     inline constexpr const char* attack     = "attack";
+    inline constexpr const char* ampDecay   = "ampDecay";
     inline constexpr const char* release    = "release";
     // Clipper
     inline constexpr const char* clipOn     = "clipOn";
@@ -178,8 +179,9 @@ private:
         int    soloSlot = -1;          // Vorhoeren: nur dieser Slot, ohne XY-Mix
         float  noteOffset = 0.0f;
         Layer  layers[numSlots];
-        // Attack (global)
+        // Attack / Decay (global)
         double attackSamples = 0.0;
+        float  ampDecayLevel = 1.0f;
         // Gemeinsam
         bool   releasing = false;
         float  releaseGain = 1.0f, releaseCoeff = 1.0f;
@@ -240,7 +242,7 @@ private:
     std::atomic<float>* pHighCut[numSlots] {};
     std::atomic<float>* pVel[numSlots] {};
     std::atomic<float> *pX = nullptr, *pY = nullptr, *pKeySync = nullptr, *pSyncMode = nullptr, *pLead = nullptr,
-                       *pChromatic = nullptr, *pAttack = nullptr,
+                       *pChromatic = nullptr, *pAttack = nullptr, *pAmpDecay = nullptr,
                        *pRelease = nullptr, *pClipOn = nullptr,
                        *pClipHard = nullptr, *pClipDrive = nullptr, *pGain = nullptr;
 

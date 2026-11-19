@@ -82,6 +82,8 @@ QuadShooterEditor::QuadShooterEditor (QuadShooterProcessor& p)
 
     auto& a = processor.apvts;
     kAttack.setup    (*this, a, ParamIDs::attack,    "Attack",  env);
+    kAmpDecay.setup  (*this, a, ParamIDs::ampDecay,  "Decay",   env);
+    kAmpDecay.slider.setTooltip ("Decay for all slots together (on top of each slot's own decay). Max = off");
     kRelease.setup   (*this, a, ParamIDs::release,   "Release", env);
     kClipDrive.setup (*this, a, ParamIDs::clipDrive, "Drive",   clip);
     kGain.setup      (*this, a, ParamIDs::gain,      "Gain",    accent2);
@@ -210,9 +212,9 @@ void QuadShooterEditor::resized()
     editStrip.setBounds (editArea.withSizeKeepingCentre (totalW, editH));
     modules = modules.withSizeKeepingCentre (totalW, moduleH);
 
-    // Modul-Reihe: Amp 2 | Clip 3 | Out 1.6
-    const float units[] = { 2.0f, 3.0f, 1.6f };
-    const float unit = (float) (modules.getWidth() - 2 * gap) / (2.0f + 3.0f + 1.6f);
+    // Modul-Reihe: Amp 3 | Clip 3 | Out 1.6
+    const float units[] = { 3.0f, 3.0f, 1.6f };
+    const float unit = (float) (modules.getWidth() - 2 * gap) / (3.0f + 3.0f + 1.6f);
     Module* ms[] = { &mAmp, &mClip, &mOut };
     for (int i = 0; i < 3; ++i)
     {
@@ -222,7 +224,7 @@ void QuadShooterEditor::resized()
 
     auto inner = [] (juce::Rectangle<int> b) { return b.reduced (10, 8).withTrimmedTop (26); };
 
-    Knob::layoutRow (inner (mAmp.bounds), { &kAttack, &kRelease });
+    Knob::layoutRow (inner (mAmp.bounds), { &kAttack, &kAmpDecay, &kRelease });
 
     {
         auto c = inner (mClip.bounds);

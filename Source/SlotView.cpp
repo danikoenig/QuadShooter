@@ -3,6 +3,44 @@
 
 using namespace ShooterColours;
 
+//==============================================================================
+void FineSlider::mouseDown (const juce::MouseEvent& e)
+{
+    if (e.getNumberOfClicks() > 1 || e.mods.isPopupMenu())
+        return juce::Slider::mouseDown (e);   // Doppelklick = 0
+    dragging = true;
+    lastX = e.position.x;
+    if (param != nullptr) param->beginChangeGesture();
+}
+
+void FineSlider::mouseDrag (const juce::MouseEvent& e)
+{
+    if (! dragging)
+        return;
+    const float dx = e.position.x - lastX;
+    lastX = e.position.x;
+    const double perPixel = e.mods.isShiftDown() ? 0.002 : 0.02;   // Halbtoene
+    setValue (juce::jlimit (getMinimum(), getMaximum(), getValue() + dx * perPixel), juce::sendNotificationSync);
+}
+
+void FineSlider::mouseUp (const juce::MouseEvent& e)
+{
+    if (! dragging)
+        return juce::Slider::mouseUp (e);
+    dragging = false;
+    if (param != nullptr) param->endChangeGesture();
+}
+
+void FineSlider::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
+{
+    const float d = std::abs (w.deltaY) > std::abs (w.deltaX) ? w.deltaY : -w.deltaX;
+    if (std::abs (d) < 1e-6f)
+        return;
+    const double step = e.mods.isShiftDown() ? 0.001 : 0.01;
+    setValue (juce::jlimit (getMinimum(), getMaximum(), getValue() + (d > 0 ? step : -step)), juce::sendNotificationSync);
+}
+
+//==============================================================================
 SlotView::SlotView (QuadShooterProcessor& p, int i)
     : processor (p), index (i), colour (slot (i))
 {
@@ -21,22 +59,30 @@ SlotView::SlotView (QuadShooterProcessor& p, int i)
     addAndMakeVisible (muteButton);
     muteAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (processor.apvts, ParamIDs::mute (index), muteButton);
 
-    levelSlider.setSliderStyle (juce::Slider::LinearBar);
-    levelSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-    levelSlider.getProperties().set ("accent", colour.toString());
-    levelSlider.setTooltip ("Level of slot " + slotLetter (index));
-    levelSlider.onValueChange = [this] { levelValue.setText (levelSlider.getTextFromValue (levelSlider.getValue()), juce::dontSendNotification); };
-    addAndMakeVisible (levelSlider);
-    levelAtt = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (processor.apvts, ParamIDs::level (index), levelSlider);
-    if (auto* prm = processor.apvts.getParameter (ParamIDs::level (index)))
-        levelSlider.setDoubleClickReturnValue (true, prm->convertFrom0to1 (prm->getDefaultValue()));
-    levelSlider.textFromValueFunction = [] (double v) { return v <= -59.9 ? juce::String ("-inf") : juce::String (v, 1) + " dB"; };
-    levelValue.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-    levelValue.setColour (juce::Label::textColourId, text);
-    levelValue.setJustificationType (juce::Justification::centredRight);
-    levelValue.setInterceptsMouseClicks (false, false);
-    levelValue.setText (levelSlider.getTextFromValue (levelSlider.getValue()), juce::dontSendNotification);
-    addAndMakeVisible (levelValue);
+    pitchSlider.setSliderStyle (juce::Slider::LinearBar);
+    pitchSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    pitchSlider.getProperties().set ("accent", colour.toString());
+    pitchSlider.getProperties().set ("bipolar", true);
+    pitchSlider.setTooltip ("Pitch of slot " + slotLetter (index) + ": -12 to +12 semitones in 1-cent steps. "
+                            "Hold Shift for extra fine, double-click = 0.");
+
+    pitchSlider.onValueChange = [this] { pitchValue.setText (pitchSlider.getTextFromValue (pitchSlider.getValue()), juce::dontSendNotification); };
+    addAndMakeVisible (pitchSlider);
+    pitchAtt = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (processor.apvts, ParamIDs::tune (index), pitchSlider);
+    pitchSlider.setDoubleClickReturnValue (true, 0.0);
+    pitchSlider.param = processor.apvts.getParameter (ParamIDs::tune (index));
+    pitchSlider.textFromValueFunction = [] (double v)
+    {
+        const int cents = juce::roundToInt (v * 100.0);
+        if (cents == 0) return juce::String ("0.00 st");
+        return (cents > 0 ? "+" : "-") + juce::String (std::abs (cents) / 100) + "." + juce::String (std::abs (cents) % 100).paddedLeft ('0', 2) + " st";
+    };
+    pitchValue.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+    pitchValue.setColour (juce::Label::textColourId, text);
+    pitchValue.setJustificationType (juce::Justification::centredRight);
+    pitchValue.setInterceptsMouseClicks (false, false);
+    pitchValue.setText (pitchSlider.getTextFromValue (pitchSlider.getValue()), juce::dontSendNotification);
+    addAndMakeVisible (pitchValue);
 
     samplesChanged();
 }
@@ -206,7 +252,7 @@ void SlotView::paint (juce::Graphics& g)
     // Level-Zeile
     g.setColour (textDim);
     g.setFont (juce::FontOptions (9.5f, juce::Font::bold));
-    g.drawText ("LEVEL", levelArea.withWidth (40), juce::Justification::centredLeft);
+    g.drawText ("PITCH", pitchArea.withWidth (40), juce::Justification::centredLeft);
 }
 
 void SlotView::resized()
@@ -227,13 +273,13 @@ void SlotView::resized()
     nameArea = header;
 
     r.removeFromTop (8);
-    levelArea = r.removeFromBottom (20);
+    pitchArea = r.removeFromBottom (20);
     {
-        auto la = levelArea;
+        auto la = pitchArea;
         la.removeFromLeft (42);
-        levelValue.setBounds (la.removeFromRight (56));
+        pitchValue.setBounds (la.removeFromRight (56));
         la.removeFromRight (6);
-        levelSlider.setBounds (la.reduced (0, 4));
+        pitchSlider.setBounds (la.reduced (0, 4));
     }
     r.removeFromBottom (8);
     notePill = r.removeFromBottom (24);

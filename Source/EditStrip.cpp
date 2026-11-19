@@ -9,6 +9,7 @@ EditStrip::EditStrip (QuadShooterProcessor& p) : processor (p)
     const auto c = ShooterColours::slot (0);
     kStart.setup   (*this, a, ParamIDs::start (0),   "Start", c, true);
     kEnd.setup     (*this, a, ParamIDs::end (0),     "End",   c, true);
+    kLevel.setup   (*this, a, ParamIDs::level (0),   "",      c, true);
     kPan.setup     (*this, a, ParamIDs::pan (0),     "",      c, true);
     kHold.setup    (*this, a, ParamIDs::hold (0),    "Hold",  c, true);
     kDecay.setup   (*this, a, ParamIDs::decay (0),   "Decay", c, true);
@@ -31,6 +32,7 @@ EditStrip::EditStrip (QuadShooterProcessor& p) : processor (p)
     kVel.slider.setTooltip ("How much velocity changes the level of this slot");
 
     groups = { { "SAMPLE",   { &kStart, &kEnd },       {} },
+               { "LEVEL",    { &kLevel },              {} },
                { "PAN",      { &kPan },                {} },
                { "ENVELOPE", { &kHold, &kDecay },      {} },
                { "PITCH",    { &kTune },               {} },
@@ -51,6 +53,7 @@ void EditStrip::setSlot (int s)
     const auto c = ShooterColours::slot (s);
     kStart.rebind   (a, ParamIDs::start (s),   c);
     kEnd.rebind     (a, ParamIDs::end (s),     c);
+    kLevel.rebind   (a, ParamIDs::level (s),   c);
     kPan.rebind     (a, ParamIDs::pan (s),     c);
     kHold.rebind    (a, ParamIDs::hold (s),    c);
     kDecay.rebind   (a, ParamIDs::decay (s),   c);

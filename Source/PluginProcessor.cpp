@@ -68,6 +68,7 @@ QuadShooterProcessor::QuadShooterProcessor()
     pKeySync = get (ParamIDs::keySync);    pSyncMode = get (ParamIDs::syncMode);
     pLead = get (ParamIDs::lead);          pChromatic = get (ParamIDs::chromatic);
     pAttack = get (ParamIDs::attack);      pRelease = get (ParamIDs::release);
+    pAmpDecay = get (ParamIDs::ampDecay);
     pClipOn = get (ParamIDs::clipOn);      pClipHard = get (ParamIDs::clipHard);
     pClipDrive = get (ParamIDs::clipDrive);
     pGain = get (ParamIDs::gain);
@@ -80,7 +81,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout QuadShooterProcessor::create
 
     auto pct = [] (float v, int) { return String (v * 100.0f, 1) + " %"; };
     auto ms  = [] (float v, int) { return v >= 1000.0f ? String (v / 1000.0f, 2) + " s" : (v < 10.0f ? String (v, 1) : String (roundToInt (v))) + " ms"; };
-    auto st  = [] (float v, int) { return (v > 0.0f ? "+" : "") + String (v, 2) + " st"; };
     auto db  = [] (float v, int) { return String (v, 1) + " dB"; };
 
     auto addFloat = [&] (const String& id, const String& name, NormalisableRange<float> r, float def,
@@ -95,7 +95,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout QuadShooterProcessor::create
         const auto L = slotNames[s];
         addFloat (ParamIDs::level (s), L + " Level", { -60.0f, 6.0f, 0.1f, 2.0f }, 0.0f,
                   [] (float v, int) { return v <= -59.9f ? String ("-inf") : String (v, 1) + " dB"; });
-        addFloat (ParamIDs::tune (s),  L + " Tune",  { -24.0f, 24.0f, 0.01f }, 0.0f, st);
+        addFloat (ParamIDs::tune (s),  L + " Pitch", { -12.0f, 12.0f, 0.001f }, 0.0f,
+                  [] (float v, int) { return (v > 0.0f ? "+" : "") + String (v, 2) + " st"; });
         addFloat (ParamIDs::start (s), L + " Start", { 0.0f, 1.0f }, 0.0f, pct);
         addFloat (ParamIDs::end (s),   L + " End",   { 0.0f, 1.0f }, 1.0f, pct);
         addFloat (ParamIDs::pan (s),   L + " Pan",   { -1.0f, 1.0f }, 0.0f,
@@ -123,6 +124,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout QuadShooterProcessor::create
     layout.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamIDs::chromatic, 1 }, "Chromatic", false));
 
     addFloat (ParamIDs::attack,  "Attack",  { 0.0f, 200.0f, 0.0f, 0.35f }, 0.0f, ms);
+    addFloat (ParamIDs::ampDecay, "Decay",  { 5.0f, 10000.0f, 0.0f, 0.3f }, 10000.0f,
+              [] (float v, int) { return v >= 9999.0f ? String ("Max") : (v >= 1000.0f ? String (v / 1000.0f, 2) + " s" : String (roundToInt (v)) + " ms"); });
     addFloat (ParamIDs::release, "Release", { 5.0f, releaseOffValue, 0.0f, 0.35f }, releaseOffValue,
               [] (float v, int) { return v >= releaseOffValue - 0.5f ? String ("Off") : (v >= 1000.0f ? String (v / 1000.0f, 2) + " s" : String (roundToInt (v)) + " ms"); });
 
@@ -432,6 +435,7 @@ void QuadShooterProcessor::renderVoices (juce::AudioBuffer<float>& out, int star
     const int outChannels = out.getNumChannels();
     const double sr = currentSampleRate;
     const double attackSamples = pAttack->load() * 0.001 * sr;
+    const float  ampDecayCoeff = pAmpDecay->load() >= 9999.0f ? 1.0f : decayCoeff (pAmpDecay->load(), sr);
     const double endFade = sr * 0.002;
 
     // Pro Slot einmal pro Block
@@ -477,9 +481,11 @@ void QuadShooterProcessor::renderVoices (juce::AudioBuffer<float>& out, int star
             if (! v.active)
                 continue;
 
-            const float att = (attackSamples < 1.0 || v.attackSamples >= attackSamples)
-                                  ? 1.0f : (float) (v.attackSamples / attackSamples);
+            const bool inAttack = attackSamples >= 1.0 && v.attackSamples < attackSamples;
+            const float att = inAttack ? (float) (v.attackSamples / attackSamples) : 1.0f;
             v.attackSamples += 1.0;
+            if (! inAttack)
+                v.ampDecayLevel *= ampDecayCoeff;
 
             float vl = 0.0f, vr = 0.0f;
             bool anyLayer = false;
@@ -540,14 +546,14 @@ void QuadShooterProcessor::renderVoices (juce::AudioBuffer<float>& out, int star
                     anyLayer = true;
             }
 
-            const float amp = att * v.fadeGain * v.releaseGain;
+            const float amp = att * v.ampDecayLevel * v.fadeGain * v.releaseGain;
             outL += vl * amp;
             outR += vr * amp;
 
             if (v.releasing)       v.releaseGain *= v.releaseCoeff;
             if (v.fadeStep > 0.0f) v.fadeGain -= v.fadeStep;
 
-            if (! anyLayer || v.fadeGain <= 0.0f || v.releaseGain <= envFloor)
+            if (! anyLayer || v.fadeGain <= 0.0f || v.releaseGain <= envFloor || v.ampDecayLevel <= envFloor)
                 v.active = false;
         }
 
