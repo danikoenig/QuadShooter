@@ -59,6 +59,7 @@ jobs:
         run: |
           ART=build/QuadShooter_artefacts/Release
           VERSION=$(grep -m1 -oE 'project\(QuadShooter VERSION [0-9.]+' CMakeLists.txt | grep -oE '[0-9.]+$')
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           mkdir -p pkgroot build/pkg
           cp -R "$ART/VST3/Quad Shooter.vst3" pkgroot/
           # Bundle nicht umleiten (sonst installiert macOS ggf. an einen alten Ort)
@@ -88,10 +89,15 @@ jobs:
             dist/*.zip
             dist/*.pkg
 
-      - name: Release (nur bei Tag v*)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Release (bei Tag v* oder Commit mit [release])
+        if: startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release]'))
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', env.VERSION) }}
+          name: Quad Shooter ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', env.VERSION) }}
+          target_commitish: ${{ github.sha }}
+          body_path: RELEASE_NOTES.md
+          make_latest: true
           files: |
             dist/*.zip
             dist/*.pkg
