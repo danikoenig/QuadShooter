@@ -1,0 +1,18 @@
+Done!
+
+Restart your DAW and rescan plugins. Then search for "Quad Shooter"
+in your instrument list.
+Logic Pro: the plugin is under Instrument > AU Instruments > Dani Koenig.
+
+If you installed Quad Shooter earlier with the Terminal commands, delete the
+old copy in your user folder so it doesn't show up twice:
+~/Library/Audio/Plug-Ins/VST3/Quad Shooter.vst3
+
+---
+
+Fertig! Starte deine DAW neu und lass die Plugins neu scannen.
+Logic Pro: Instrument > AU Instruments > Dani Koenig.
+Falls du Quad Shooter früher per Terminal installiert hast, lösche die alte
+Kopie in deinem Benutzerordner (siehe oben), damit es nicht doppelt erscheint.
+
+https://github.com/danikoenig/QuadShooter

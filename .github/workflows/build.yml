@@ -1,0 +1,97 @@
+name: Build macOS (Apple Silicon)
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest   # Apple Silicon Runner
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache JUCE
+        uses: actions/cache@v4
+        with:
+          path: build/_deps/juce-src
+          key: juce-src-8.0.4-${{ github.event.repository.name }}-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Configure
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+
+      - name: Build
+        run: cmake --build build --config Release --target QuadShooter_VST3 QuadShooter_AU QuadShooter_Standalone -j 4
+
+      - name: Validate AU (auval)
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R "build/QuadShooter_artefacts/Release/AU/Quad Shooter.component" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+          sleep 2
+          auval -a | grep -i "Dkng" || true
+          set -o pipefail
+          auval -strict -v aumu Qds1 Dkng | tail -40
+
+      - name: Sign (ad-hoc) and package
+        run: |
+          ART=build/QuadShooter_artefacts/Release
+          codesign --force --deep --sign - "$ART/VST3/Quad Shooter.vst3"
+          codesign --force --deep --sign - "$ART/AU/Quad Shooter.component"
+          codesign --force --deep --sign - "$ART/Standalone/Quad Shooter.app"
+          mkdir -p dist "pkg/Quad Shooter"
+          cp -R "$ART/VST3/Quad Shooter.vst3" "pkg/Quad Shooter/"
+          cp -R "$ART/AU/Quad Shooter.component" "pkg/Quad Shooter/"
+          cp INSTALL.txt "pkg/Quad Shooter/INSTALL.txt"
+          ditto -c -k --keepParent "pkg/Quad Shooter" "dist/QuadShooter-VST3-macOS-arm64.zip"
+          ditto -c -k --keepParent "$ART/Standalone/Quad Shooter.app" "dist/QuadShooter-Standalone-macOS-arm64.zip"
+
+      - name: Build installer (.pkg)
+        run: |
+          ART=build/QuadShooter_artefacts/Release
+          VERSION=$(grep -m1 -oE 'project\(QuadShooter VERSION [0-9.]+' CMakeLists.txt | grep -oE '[0-9.]+$')
+          mkdir -p pkgroot build/pkg
+          cp -R "$ART/VST3/Quad Shooter.vst3" pkgroot/
+          # Bundle nicht umleiten (sonst installiert macOS ggf. an einen alten Ort)
+          pkgbuild --analyze --root pkgroot build/pkg/component.plist
+          plutil -replace 0.BundleIsRelocatable -bool NO build/pkg/component.plist
+          pkgbuild --root pkgroot --component-plist build/pkg/component.plist \
+            --identifier ch.danikoenig.quadshooter.vst3 --version "$VERSION" \
+            --install-location "/Library/Audio/Plug-Ins/VST3" build/pkg/QuadShooterVST3.pkg
+          # AU-Paket
+          mkdir -p pkgroot-au
+          cp -R "$ART/AU/Quad Shooter.component" pkgroot-au/
+          pkgbuild --analyze --root pkgroot-au build/pkg/component-au.plist
+          plutil -replace 0.BundleIsRelocatable -bool NO build/pkg/component-au.plist
+          pkgbuild --root pkgroot-au --component-plist build/pkg/component-au.plist \
+            --identifier ch.danikoenig.quadshooter.au --version "$VERSION" \
+            --install-location "/Library/Audio/Plug-Ins/Components" build/pkg/QuadShooterAU.pkg
+          sed "s/@VERSION@/$VERSION/g" installer/distribution.xml > build/pkg/distribution.xml
+          productbuild --distribution build/pkg/distribution.xml --resources installer/resources \
+            --package-path build/pkg "dist/QuadShooter-Installer.pkg"
+          pkgutil --payload-files "dist/QuadShooter-Installer.pkg" | head -5
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuadShooter-macOS-arm64
+          path: |
+            dist/*.zip
+            dist/*.pkg
+
+      - name: Release (nur bei Tag v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.zip
+            dist/*.pkg

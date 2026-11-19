@@ -1,0 +1,12 @@
+Quad Shooter - free 4-slot one-shot layering sampler
+by Dani Koenig
+
+This installs Quad Shooter as:
+- VST3:       /Library/Audio/Plug-Ins/VST3   (Bitwig, Ableton Live, Cubase, Reaper ...)
+- Audio Unit: /Library/Audio/Plug-Ins/Components   (Logic Pro, GarageBand)
+
+Requirements: Apple Silicon Mac (M1 or newer), macOS 11 or newer.
+
+---
+
+Installiert Quad Shooter als VST3 und als Audio Unit (für Logic Pro und GarageBand).
