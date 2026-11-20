@@ -2,6 +2,9 @@ Free 4-slot one-shot layering sampler for macOS (Apple Silicon), VST3 and Audio 
 
 **Download `QuadShooter-Installer.pkg`** and double-click it. macOS blocks it the first time: open System Settings > Privacy & Security and click "Open Anyway". Full guide: see INSTALL.txt in the ZIP or in the repository.
 
+### New in v0.4.1
+- **Uninstaller**: `QuadShooter-Uninstaller.pkg` removes Quad Shooter with a double-click (VST3, Audio Unit, Standalone app). Your projects and library stay untouched.
+
 ### Features
 - 4 sample slots A, B, C, D with pitch detection and a fine pitch slider (1-cent steps)
 - XY Mix to blend the four slots

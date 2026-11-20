@@ -153,6 +153,10 @@ TROUBLESHOOTING
 
 
 UNINSTALL
+Easiest: download QuadShooter-Uninstaller.pkg from the release page, double-click it
+and follow the steps. It removes both ways of installing.
+
+By hand:
 Installed with Way A: open Finder, press Cmd + Shift + G, paste
 /Library/Audio/Plug-Ins/VST3 and press Enter. Move "Quad Shooter.vst3"
 to the Trash. Do the same for /Library/Audio/Plug-Ins/Components and
@@ -316,6 +320,10 @@ PROBLEME
 
 
 DEINSTALLIEREN
+Am einfachsten: QuadShooter-Uninstaller.pkg von der Release-Seite laden, doppelklicken
+und den Schritten folgen. Es entfernt beide Installationswege.
+
+Von Hand:
 Mit Weg A installiert: Finder öffnen, Cmd + Shift + G drücken,
 /Library/Audio/Plug-Ins/VST3 einfügen und Enter drücken. "Quad Shooter.vst3"
 in den Papierkorb legen. Dasselbe für /Library/Audio/Plug-Ins/Components
