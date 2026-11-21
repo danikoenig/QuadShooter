@@ -30,7 +30,7 @@ jobs:
             -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
 
       - name: Build
-        run: cmake --build build --config Release --target QuadShooter_VST3 QuadShooter_AU QuadShooter_Standalone -j 4
+        run: cmake --build build --config Release --target QuadShooter_VST3 QuadShooter_AU QuadShooter_Standalone QuadShooter_CLAP -j 4
 
       - name: Validate AU (auval)
         run: |
@@ -47,10 +47,12 @@ jobs:
           ART=build/QuadShooter_artefacts/Release
           codesign --force --deep --sign - "$ART/VST3/Quad Shooter.vst3"
           codesign --force --deep --sign - "$ART/AU/Quad Shooter.component"
+          codesign --force --deep --sign - "$ART/CLAP/Quad Shooter.clap"
           codesign --force --deep --sign - "$ART/Standalone/Quad Shooter.app"
           mkdir -p dist "pkg/Quad Shooter"
           cp -R "$ART/VST3/Quad Shooter.vst3" "pkg/Quad Shooter/"
           cp -R "$ART/AU/Quad Shooter.component" "pkg/Quad Shooter/"
+          cp -R "$ART/CLAP/Quad Shooter.clap" "pkg/Quad Shooter/"
           cp INSTALL.txt "pkg/Quad Shooter/INSTALL.txt"
           ditto -c -k --keepParent "pkg/Quad Shooter" "dist/QuadShooter-VST3-macOS-arm64.zip"
           ditto -c -k --keepParent "$ART/Standalone/Quad Shooter.app" "dist/QuadShooter-Standalone-macOS-arm64.zip"
@@ -76,6 +78,14 @@ jobs:
           pkgbuild --root pkgroot-au --component-plist build/pkg/component-au.plist \
             --identifier ch.danikoenig.quadshooter.au --version "$VERSION" \
             --install-location "/Library/Audio/Plug-Ins/Components" build/pkg/QuadShooterAU.pkg
+          # CLAP-Paket
+          mkdir -p pkgroot-clap
+          cp -R "$ART/CLAP/Quad Shooter.clap" pkgroot-clap/
+          pkgbuild --analyze --root pkgroot-clap build/pkg/component-clap.plist
+          plutil -replace 0.BundleIsRelocatable -bool NO build/pkg/component-clap.plist
+          pkgbuild --root pkgroot-clap --component-plist build/pkg/component-clap.plist \
+            --identifier ch.danikoenig.quadshooter.clap --version "$VERSION" \
+            --install-location "/Library/Audio/Plug-Ins/CLAP" build/pkg/QuadShooterCLAP.pkg
           sed "s/@VERSION@/$VERSION/g" installer/distribution.xml > build/pkg/distribution.xml
           productbuild --distribution build/pkg/distribution.xml --resources installer/resources \
             --package-path build/pkg "dist/QuadShooter-Installer.pkg"

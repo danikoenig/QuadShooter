@@ -1,6 +1,9 @@
-Free 4-slot one-shot layering sampler for macOS (Apple Silicon), VST3 and Audio Unit. By Dani Koenig.
+Free 4-slot one-shot layering sampler for macOS (Apple Silicon), VST3, CLAP and Audio Unit. By Dani Koenig.
 
 **Download `QuadShooter-Installer.pkg`** and double-click it. macOS blocks it the first time: open System Settings > Privacy & Security and click "Open Anyway". Full guide: see INSTALL.txt in the ZIP or in the repository.
+
+### New in v0.4.2
+- **CLAP format** (Bitwig, Reaper ...) in addition to VST3 and Audio Unit. The installer puts it in /Library/Audio/Plug-Ins/CLAP.
 
 ### New in v0.4.1
 - **Uninstaller**: `QuadShooter-Uninstaller.pkg` removes Quad Shooter with a double-click (VST3, Audio Unit, Standalone app). Your projects and library stay untouched.

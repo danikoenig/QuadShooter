@@ -14,6 +14,7 @@
         <line choice="default">
             <line choice="ch.danikoenig.quadshooter.vst3"/>
             <line choice="ch.danikoenig.quadshooter.au"/>
+            <line choice="ch.danikoenig.quadshooter.clap"/>
         </line>
     </choices-outline>
     <choice id="default"/>
@@ -23,6 +24,10 @@
     <choice id="ch.danikoenig.quadshooter.au" visible="false">
         <pkg-ref id="ch.danikoenig.quadshooter.au"/>
     </choice>
+    <choice id="ch.danikoenig.quadshooter.clap" visible="false">
+        <pkg-ref id="ch.danikoenig.quadshooter.clap"/>
+    </choice>
+    <pkg-ref id="ch.danikoenig.quadshooter.clap" version="@VERSION@" onConclusion="none">QuadShooterCLAP.pkg</pkg-ref>
     <pkg-ref id="ch.danikoenig.quadshooter.vst3" version="@VERSION@" onConclusion="none">QuadShooterVST3.pkg</pkg-ref>
     <pkg-ref id="ch.danikoenig.quadshooter.au" version="@VERSION@" onConclusion="none">QuadShooterAU.pkg</pkg-ref>
 </installer-gui-script>

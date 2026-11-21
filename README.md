@@ -1,6 +1,6 @@
 # Quad Shooter
 
-Free 4-slot sample player for macOS (Apple Silicon), VST3 and Audio Unit.
+Free 4-slot sample player for macOS (Apple Silicon), VST3, CLAP and Audio Unit.
 By Dani Koenig. Sister plugin of [One Shooter](https://github.com/danikoenig/OneShooter).
 
 ![Quad Shooter](docs/screenshot.png)
