@@ -20,7 +20,7 @@ By Dani Koenig. Sister plugin of [One Shooter](https://github.com/danikoenig/One
 - **FX chain after the amp, order freely with the arrows**:
   - **Delay**: Mono or Ping-Pong, tempo synced (1/64 to 1/1, dotted, triplets) or free in ms, Feedback, Mix
   - **Reverb**: Size from a tight drum room to a big space for pads, Damp, Mix
-  - **Clipper** in the style of KNOCK (soft / hard, 4x oversampling) with **Auto Gain** (loudness matched, so you hear the saturation, not just more level)
+  - **Clipper** in the style of Knack (soft / hard, 4x oversampling) with **Auto Gain** (loudness matched, so you hear the saturation, not just more level)
 - **Output**: Gain into a **Limiter** (ceiling -1 dB) with GR meter
 - **Library**: drop a folder, all one-shots are indexed (files stay where they are). Click = listen, drag a sample onto a slot = load, double-click = load into the selected slot. Prev / Next per slot. Takes over the One Shooter index on first start.
 
