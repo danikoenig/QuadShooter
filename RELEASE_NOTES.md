@@ -1,5 +1,9 @@
 Free 4-slot one-shot layering sampler for macOS (Apple Silicon), VST3, CLAP and Audio Unit. By Dani Koenig.
 
+### New in v0.4.3
+- **Manuals**: new PDF manuals in English and German, attached to this release (also linked on the download page)
+- Manual covers quick start, every control, recipes and install
+
 **Download `QuadShooter-Installer.pkg`** and double-click it. macOS blocks it the first time: open System Settings > Privacy & Security and click "Open Anyway". Full guide: see INSTALL.txt in the ZIP or in the repository.
 
 ### New in v0.4.2
