@@ -1,5 +1,7 @@
 # Quad Shooter
 
+**Manual (PDF):** [English](https://github.com/danikoenig/QuadShooter/releases/latest/download/QuadShooter-Manual-EN.pdf) | [Deutsch](https://github.com/danikoenig/quadshooter/releases/latest/download/QuadShooter-Manual-DE.pdf)
+
 Free 4-slot sample player for macOS (Apple Silicon), VST3, CLAP and Audio Unit.
 By Dani Koenig. Sister plugin of [One Shooter](https://github.com/danikoenig/OneShooter).
 
@@ -27,7 +29,7 @@ By Dani Koenig. Sister plugin of [One Shooter](https://github.com/danikoenig/One
 ## Install
 
 Download the latest release: [Releases](https://github.com/danikoenig/QuadShooter/releases).
-`QuadShooter-Installer.pkg` installs VST3 and AU. See [INSTALL.txt](INSTALL.txt).
+`QuadShooter-Installer.pkg` installs VST3, AU and CLAP. See [INSTALL.txt](INSTALL.txt).
 
 ## Build
 
