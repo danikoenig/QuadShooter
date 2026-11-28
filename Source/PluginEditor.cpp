@@ -228,6 +228,7 @@ void QuadShooterEditor::paint (juce::Graphics& g)
 
 void QuadShooterEditor::resized()
 {
+    frameOverlay.attach (*this, 0.0f);
     auto r = getLocalBounds().reduced (margin);
 
     if (library.isVisible())

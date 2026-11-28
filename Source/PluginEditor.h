@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PluginProcessor.h"
+#include "FrameOverlay.h"
 #include "Look.h"
 #include "Knob.h"
 #include "SlotView.h"
@@ -15,6 +16,8 @@ class QuadShooterEditor : public juce::AudioProcessorEditor,
                           private juce::ChangeListener,
                           private juce::Timer
 {
+    FrameOverlay frameOverlay;
+
 public:
     explicit QuadShooterEditor (QuadShooterProcessor&);
     ~QuadShooterEditor() override;

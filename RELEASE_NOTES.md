@@ -1,5 +1,8 @@
 Free 4-slot one-shot layering sampler for macOS (Apple Silicon), VST3, CLAP and Audio Unit. By Dani Koenig.
 
+### New in v0.4.4
+- **Frame**: the window now has the same 4 px orange frame as Gain, Dub Delay and Remember, so all plugins share one look
+
 ### New in v0.4.3
 - **Manuals**: new PDF manuals in English and German, attached to this release (also linked on the download page)
 - Manual covers quick start, every control, recipes and install
